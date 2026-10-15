@@ -1,0 +1,15 @@
+# pi-gen checkout and build outputs (scripts/build-local.sh)
+/pi-gen/
+/pi-gen-work/
+/build/
+/deploy/
+/work/
+
+# generated per build, never commit
+/stage-custom/secrets.env
+/stage-custom/build-info.env
+
+*.img
+*.img.xz
+*.img.gz
+*.zip

@@ -1,0 +1,64 @@
+#cloud-config
+#
+# Installed by stage-custom (02-cloud-init). cloud-init reads this file from the
+# boot partition on the FIRST boot only (meta-data pins instance_id, so later
+# edits are ignored unless you clean cloud-init state). Everything below is
+# commented out: the image boots exactly like Raspberry Pi OS Lite until you
+# enable something. Keep the "#cloud-config" first line, it is mandatory.
+#
+# References
+#   https://cloudinit.readthedocs.io/en/latest/reference/examples.html
+#   https://cloudinit.readthedocs.io/en/latest/reference/modules.html
+#   https://www.raspberrypi.com/news/cloud-init-on-raspberry-pi-os/
+#
+# Raspberry Pi Imager 2.0 "OS customisation" rewrites this file and
+# network-config, so anything you bake in here is replaced when you use it.
+
+## Hostname and time zone are already set at build time from ./config.
+## Override here if one image must serve several devices:
+# hostname: mypi
+# manage_etc_hosts: true
+# timezone: Europe/London
+
+## Create or configure a user. Generate the hash with:
+##   openssl passwd -6
+## Without a user here (and no password baked in at build time) the image
+## shows the standard Raspberry Pi first-boot user wizard on the console.
+# users:
+#   - name: pi
+#     groups: users,adm,dialout,audio,netdev,video,plugdev,cdrom,games,input,gpio,spi,i2c,render,sudo
+#     shell: /bin/bash
+#     lock_passwd: false
+#     hashed_passwd: "$6$replace$me"
+#     ssh_authorized_keys:
+#       - ssh-ed25519 AAAA... you@example
+#     sudo: ALL=(ALL) NOPASSWD:ALL
+
+## Disable SSH password logins (keys only).
+# ssh_pwauth: false
+
+## Raspberry Pi specific module (cc_raspberry_pi). The flat form below is what
+## the Raspberry Pi announcement documents for Trixie; newer upstream cloud-init
+## nests the same keys under "interfaces:". The build-time switches in
+## stage-custom/custom.conf (ENABLE_I2C, ENABLE_SPI, ENABLE_UART) do not depend
+## on this module.
+# rpi:
+#   spi: true
+#   i2c: true
+#   serial: true
+#   onewire: true
+#   enable_usb_gadget: true
+
+## Install packages or run commands on first boot (needs network).
+# package_update: true
+# packages:
+#   - htop
+# runcmd:
+#   - [ sh, -c, "echo first boot done > /var/log/first-boot.log" ]
+
+## Write arbitrary files.
+# write_files:
+#   - path: /etc/myapp.conf
+#     permissions: "0644"
+#     content: |
+#       key=value

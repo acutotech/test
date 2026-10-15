@@ -1,0 +1,6 @@
+# Generated at image build time by stage-custom (02-cloud-init).
+# cloud-init applies this netplan configuration on FIRST boot only and stores
+# the result in /etc/netplan/. Edit it before the first boot, or afterwards use
+# nmcli / netplan on the device.
+#
+# Reference: https://cloudinit.readthedocs.io/en/latest/reference/network-config-format-v2.html

@@ -1,0 +1,10 @@
+#!/bin/sh
+# Example payload shipped by stage-custom: log the image identity at boot.
+set -eu
+
+if [ -f /etc/custom-image-release ]; then
+	# shellcheck disable=SC1091
+	. /etc/custom-image-release
+fi
+
+logger -t hello-custom "Custom Raspberry Pi OS ${IMAGE_NAME:-?} built ${IMAGE_DATE:-?} from ${SOURCE_COMMIT:-?} is up on $(hostname)"

@@ -1,0 +1,235 @@
+name: Build image
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: >-
+          Runner. ubuntu-24.04-arm builds natively; ubuntu-latest (x86-64)
+          emulates arm64 with QEMU and is several times slower.
+        type: choice
+        default: ubuntu-24.04-arm
+        options:
+          - ubuntu-24.04-arm
+          - ubuntu-latest
+      pi-gen-ref:
+        description: >-
+          pi-gen branch or tag. "arm64" is the current 64-bit branch; tags look
+          like 2026-10-06-raspios-trixie-arm64.
+        type: string
+        default: arm64
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint and dry-run
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq shellcheck yamllint python3-yaml
+
+      - name: shellcheck and yamllint
+        run: make lint-shell lint-yaml
+
+      - name: actionlint
+        uses: docker://rhysd/actionlint:1.7.12
+        with:
+          args: -color
+
+      - name: Dry-run the custom stage
+        run: make test
+
+  build:
+    name: Build image
+    needs: lint
+    # Full builds take a long time; pull requests get lint + dry-run only.
+    if: github.event_name != 'pull_request'
+    runs-on: ${{ inputs.runner || 'ubuntu-24.04-arm' }}
+    timeout-minutes: 300
+    concurrency:
+      group: build-image-${{ github.ref }}
+      cancel-in-progress: false
+    outputs:
+      image-name: ${{ steps.cfg.outputs.img_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Read build config
+        id: cfg
+        shell: bash
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1091
+          source ./config
+          for var in IMG_NAME PI_GEN_RELEASE RELEASE TARGET_HOSTNAME FIRST_USER_NAME \
+                     LOCALE_DEFAULT KEYBOARD_KEYMAP KEYBOARD_LAYOUT TIMEZONE_DEFAULT WPA_COUNTRY \
+                     ENABLE_SSH PUBKEY_ONLY_SSH PASSWORDLESS_SUDO ENABLE_CLOUD_INIT \
+                     DEPLOY_COMPRESSION COMPRESSION_LEVEL; do
+            value="${!var:-}"
+            if [[ "${value}" == *$'\n'* ]]; then
+              echo "::error file=config::${var} must be a single line"
+              exit 1
+            fi
+            printf '%s=%s\n' "${var,,}" "${value}" >> "${GITHUB_OUTPUT}"
+          done
+          cat "${GITHUB_OUTPUT}"
+
+      - name: Check secrets and write stage files
+        env:
+          FIRST_USER_PASS: ${{ secrets.FIRST_USER_PASS }}
+          SSH_AUTHORIZED_KEYS: ${{ secrets.SSH_AUTHORIZED_KEYS }}
+          WIFI_SSID: ${{ secrets.WIFI_SSID }}
+          WIFI_PASSWORD: ${{ secrets.WIFI_PASSWORD }}
+          REPO_IS_PRIVATE: ${{ github.event.repository.private }}
+          ALLOW_SECRETS_IN_PUBLIC_IMAGE: ${{ vars.ALLOW_SECRETS_IN_PUBLIC_IMAGE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Artifacts and releases of a public repository are public. An image that
+          # embeds a password hash or a Wi-Fi passphrase would publish them.
+          if [ "${REPO_IS_PRIVATE}" != "true" ] && [ "${ALLOW_SECRETS_IN_PUBLIC_IMAGE}" != "true" ] \
+             && { [ -n "${FIRST_USER_PASS}" ] || [ -n "${WIFI_PASSWORD}" ]; }; then
+            msg="This repository is public, so the built image (artifact, release) is public too, and it"
+            msg="${msg} would contain FIRST_USER_PASS (hashed) and/or WIFI_PASSWORD (clear text). Make the"
+            msg="${msg} repository private, remove those secrets, or set the repository variable"
+            msg="${msg} ALLOW_SECRETS_IN_PUBLIC_IMAGE=true to accept this."
+            echo "::error::${msg}"
+            exit 1
+          fi
+          # pi-gen writes FIRST_USER_PASS into an unquoted shell heredoc (chpasswd)
+          # and the action writes both values into a double-quoted config file, so
+          # these characters would silently change the password or break the build.
+          if [[ "${FIRST_USER_PASS}" == *[\"\$\`\\]* || "${FIRST_USER_PASS}" == *$'\n'* ]]; then
+            echo '::error::FIRST_USER_PASS must not contain " $ ` \ or newlines (pi-gen limitation)'
+            exit 1
+          fi
+          if [[ "${SSH_AUTHORIZED_KEYS}" == *[\"\$\`\\]* ]]; then
+            echo '::error::SSH_AUTHORIZED_KEYS must not contain " $ ` or \ (pi-gen limitation)'
+            exit 1
+          fi
+          if [ -n "${SSH_AUTHORIZED_KEYS}" ] && [ -z "${FIRST_USER_PASS}" ]; then
+            msg="SSH_AUTHORIZED_KEYS is set but FIRST_USER_PASS is not. pi-gen leaves the first user's shell"
+            msg="${msg} as nologin until a password exists, so SSH key logins are refused and the console"
+            msg="${msg} wizard runs. Set FIRST_USER_PASS for a headless device."
+            echo "::warning::${msg}"
+          fi
+          umask 077
+          {
+            printf '# Generated by the workflow. Never committed.\n'
+            printf 'WIFI_SSID=%q\n' "${WIFI_SSID}"
+            printf 'WIFI_PASSWORD=%q\n' "${WIFI_PASSWORD}"
+          } > stage-custom/secrets.env
+          {
+            printf 'CUSTOM_GIT_SHA=%q\n' "${GITHUB_SHA}"
+            printf 'CUSTOM_GIT_REF=%q\n' "${GITHUB_REF_NAME}"
+            printf 'CUSTOM_BUILD_URL=%q\n' "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } > stage-custom/build-info.env
+          echo "Wi-Fi: $([ -n "${WIFI_SSID}" ] && echo configured || echo 'not configured (no WIFI_SSID secret)')"
+
+      - name: Build with pi-gen
+        id: build
+        uses: usimd/pi-gen-action@cec66cba86bdcd23984e6a79ea4e9251d90bc798 # v1.11.0
+        with:
+          image-name: ${{ steps.cfg.outputs.img_name }}
+          pi-gen-version: ${{ inputs.pi-gen-ref || 'arm64' }}
+          pi-gen-release: ${{ steps.cfg.outputs.pi_gen_release }}
+          release: ${{ steps.cfg.outputs.release }}
+          stage-list: stage0 stage1 stage2 ./stage-custom
+          export-last-stage-only: true
+          hostname: ${{ steps.cfg.outputs.target_hostname }}
+          username: ${{ steps.cfg.outputs.first_user_name }}
+          # Without a password pi-gen locks the account and arms the first-boot
+          # user wizard; with one, the user is usable immediately.
+          password: ${{ secrets.FIRST_USER_PASS }}
+          disable-first-boot-user-rename: ${{ secrets.FIRST_USER_PASS != '' && '1' || '0' }}
+          passwordless-sudo: ${{ steps.cfg.outputs.passwordless_sudo }}
+          enable-ssh: ${{ steps.cfg.outputs.enable_ssh }}
+          pubkey-ssh-first-user: ${{ secrets.SSH_AUTHORIZED_KEYS }}
+          pubkey-only-ssh: ${{ secrets.SSH_AUTHORIZED_KEYS != '' && steps.cfg.outputs.pubkey_only_ssh || '0' }}
+          locale: ${{ steps.cfg.outputs.locale_default }}
+          keyboard-keymap: ${{ steps.cfg.outputs.keyboard_keymap }}
+          keyboard-layout: ${{ steps.cfg.outputs.keyboard_layout }}
+          timezone: ${{ steps.cfg.outputs.timezone_default }}
+          wpa-country: ${{ steps.cfg.outputs.wpa_country }}
+          enable-cloud-init: ${{ steps.cfg.outputs.enable_cloud_init }}
+          compression: ${{ steps.cfg.outputs.deploy_compression }}
+          compression-level: ${{ steps.cfg.outputs.compression_level }}
+          increase-runner-disk-size: true
+          # pi-gen's work directory (and its build.log) normally lives only inside
+          # the build container, which the action removes afterwards. Mount it on
+          # the runner so the log can be uploaded when the build fails.
+          docker-opts: -v ${{ github.workspace }}/pi-gen-work:/pi-gen/work
+          verbose-output: true
+
+      - name: Checksums and summary
+        env:
+          IMAGE_PATH: ${{ steps.build.outputs.image-path }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$(dirname "${IMAGE_PATH}")"
+          rm -f SHA256SUMS
+          sha256sum -- * > SHA256SUMS
+          ls -lh
+          {
+            echo "### Image build"
+            echo
+            echo "Image: \`$(basename "${IMAGE_PATH}")\` ($(du -h "${IMAGE_PATH}" | cut -f1))"
+            echo
+            echo '```'
+            cat SHA256SUMS
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload image
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.cfg.outputs.img_name }}
+          path: pi-gen/deploy/
+          if-no-files-found: error
+          retention-days: 14
+          # The image is already xz/zip compressed.
+          compression-level: 0
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-log
+          path: |
+            pi-gen-work/*/build.log
+            pi-gen-work/*/*/debootstrap.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  release:
+    name: Publish GitHub release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.build.outputs.image-name }}
+          path: deploy
+
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          # Everything pi-gen deployed, so SHA256SUMS matches the attached files.
+          files: deploy/*
+          fail_on_unmatched_files: true
+          generate_release_notes: true

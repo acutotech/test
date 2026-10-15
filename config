@@ -1,0 +1,54 @@
+# shellcheck shell=bash disable=SC2034
+# Build configuration for the custom Raspberry Pi OS image.
+#
+# Sourced by pi-gen (bash syntax, keep values quoted). This file is the single
+# source of truth for both build paths:
+#   * local builds   -> scripts/build-local.sh
+#   * GitHub Actions -> .github/workflows/build-image.yml ("Read build config")
+#
+# Secrets never belong here. Passwords, SSH keys and Wi-Fi credentials go in
+# stage-custom/secrets.env (git-ignored) or GitHub Actions secrets.
+# Non-secret image tweaks (packages, interfaces, services) live in
+# stage-custom/custom.conf and stage-custom/00-packages/00-packages.
+
+# Root name of the image. Output file: image_<date>-<IMG_NAME>-lite.img.xz
+IMG_NAME="custom-raspios"
+
+# Written to /etc/rpi-issue and /boot/firmware/issue.txt inside the image.
+PI_GEN_RELEASE="Custom Raspberry Pi OS"
+
+# Debian release. pi-gen's arm64 branch targets trixie; another release needs
+# a matching pi-gen branch (PI_GEN_REF in scripts/build-local.sh, pi-gen-ref
+# input of the workflow).
+RELEASE="trixie"
+
+# System identity.
+TARGET_HOSTNAME="custompi"
+FIRST_USER_NAME="pi"
+
+# Locale, keyboard, time zone and Wi-Fi regulatory domain.
+# WPA_COUNTRY must be set for Wi-Fi to work at all: without it pi-gen ships
+# the image with the radio soft-blocked until a country is chosen.
+LOCALE_DEFAULT="en_GB.UTF-8"
+KEYBOARD_KEYMAP="gb"
+KEYBOARD_LAYOUT="English (UK)"
+TIMEZONE_DEFAULT="Europe/London"
+WPA_COUNTRY="GB"
+
+# SSH server enabled (headless image). When an SSH public key is supplied
+# (secret SSH_AUTHORIZED_KEYS, or PUBKEY_SSH_FIRST_USER in secrets.env) and
+# PUBKEY_ONLY_SSH is 1, password logins over SSH are switched off.
+ENABLE_SSH="1"
+PUBKEY_ONLY_SSH="1"
+PASSWORDLESS_SUDO="0"
+
+# cloud-init (NoCloud datasource: user-data and network-config on the boot
+# partition are applied on first boot). Needed for the baked-in Wi-Fi setup.
+ENABLE_CLOUD_INIT="1"
+
+# Output compression: xz (smallest, slowest), zip, gz or none.
+DEPLOY_COMPRESSION="xz"
+COMPRESSION_LEVEL="6"
+
+# Do not set STAGE_LIST, FIRST_USER_PASS, PUBKEY_SSH_FIRST_USER or
+# DISABLE_FIRST_BOOT_USER_RENAME here: the build scripts derive them.

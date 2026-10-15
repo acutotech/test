@@ -1,0 +1,12 @@
+[Unit]
+Description=Example custom service: log image identity at boot
+# No After=multi-user.target here: a unit wanted by a target is implicitly
+# ordered before it, so that would create a cycle and systemd would drop it.
+After=systemd-journald.socket
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/hello-custom
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,13 @@
+# Extra packages for the image, installed with "apt-get install -y" (recommends
+# included). One per line or space separated; '#' comments are stripped.
+# Append '-' to a name to REMOVE a package instead (apt syntax), e.g. "gdb-".
+git
+vim
+tmux
+jq
+tree
+unattended-upgrades
+
+# Raspberry Pi OS Lite ships development tooling that a product image rarely
+# needs. Uncomment to drop it (saves roughly 300 MB):
+# build-essential- manpages-dev- gdb- lua5.1- luajit-
