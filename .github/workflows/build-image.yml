@@ -139,7 +139,11 @@ jobs:
           compression: ${{ inputs.compression || steps.cfg.outputs.deploy_compression }}
           compression-level: ${{ steps.cfg.outputs.compression_level }}
           increase-runner-disk-size: true
-          verbose-output: false
+          # pi-gen's work directory (and its build.log) normally lives only inside
+          # the build container, which the action removes afterwards. Mount it on
+          # the runner so the log can be uploaded when the build fails.
+          docker-opts: -v ${{ github.workspace }}/pi-gen-work:/pi-gen/work
+          verbose-output: true
 
       - name: Checksums and summary
         env:
@@ -177,9 +181,9 @@ jobs:
         with:
           name: build-log
           path: |
-            pi-gen/work/*/build.log
-            pi-gen/deploy/*.log
-          if-no-files-found: ignore
+            pi-gen-work/*/build.log
+            pi-gen-work/*/*/debootstrap.log
+          if-no-files-found: warn
           retention-days: 7
 
   release:

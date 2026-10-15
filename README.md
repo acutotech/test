@@ -245,7 +245,9 @@ stage-custom/
 ## Troubleshooting
 
 * **Build fails in stage0 (debootstrap) or with apt errors:** usually a mirror
-  hiccup; re-run. Locally, `--continue` resumes.
+  hiccup; re-run. Locally, `--continue` resumes. In CI the full pi-gen output
+  is in the job log (grouped per stage) and `build.log` is uploaded as the
+  `build-log` artifact.
 * **"No space left on device" in CI:** the workflow already trims the runner.
   Drop packages, or do not build the Desktop stages.
 * **Wi-Fi does not connect:** check `WPA_COUNTRY`, that the SSID is 2.4 GHz

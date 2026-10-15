@@ -1,5 +1,6 @@
 # pi-gen checkout and build outputs (scripts/build-local.sh)
 /pi-gen/
+/pi-gen-work/
 /build/
 /deploy/
 /work/
