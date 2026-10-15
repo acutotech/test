@@ -38,7 +38,10 @@ Defaults, all changeable:
 
 1. Push this repository to GitHub. Public repositories get the native arm64
    runner (`ubuntu-24.04-arm`) for free; private ones can use it too, billed
-   against the plan's minutes.
+   against the plan's minutes. **In a public repository the built image is
+   public as well** (artifact and release), so the workflow refuses to bake
+   `FIRST_USER_PASS` or `WIFI_PASSWORD` into it unless you set the repository
+   variable `ALLOW_SECRETS_IN_PUBLIC_IMAGE` to `true`.
 2. Optional: add repository secrets under *Settings → Secrets and variables →
    Actions*.
 
@@ -236,6 +239,12 @@ stage-custom/
 * Secrets never enter the repository. CI writes `stage-custom/secrets.env`
   from GitHub secrets at build time; locally you create it yourself. Neither
   file is copied into the image.
+* The image itself is not secret-free: it carries the password hash and the
+  Wi-Fi passphrase you configured. Artifacts and releases of a **public**
+  repository can be downloaded by anyone, so the workflow stops when those
+  secrets are set in a public repository unless the repository variable
+  `ALLOW_SECRETS_IN_PUBLIC_IMAGE=true` says you accept that. Keep the
+  repository private or distribute the image another way.
 * Wi-Fi credentials end up in clear text in `network-config` on the FAT boot
   partition. This is how Raspberry Pi Imager stores them too. Anyone with the
   SD card can read them.
