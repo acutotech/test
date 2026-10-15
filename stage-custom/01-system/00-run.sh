@@ -58,5 +58,15 @@ else
 	rm -f "${ROOTFS_DIR}/etc/apt/apt.conf.d/52unattended-upgrades-raspberrypi"
 fi
 
+# --- passwordless sudo -------------------------------------------------------------
+# pi-gen applies PASSWORDLESS_SUDO itself in stage2, but pi-gen-action v1.11.0 has
+# no input for it, so CI forwards the value via build-info.env and we apply it here
+# the same way pi-gen does (idempotent: writes /etc/sudoers.d/010_pi-nopasswd).
+if [ "${PASSWORDLESS_SUDO:-0}" = "1" ]; then
+	on_chroot << EOF
+SUDO_USER="${FIRST_USER_NAME}" raspi-config nonint do_sudo_pass 1
+EOF
+fi
+
 # --- login banner ------------------------------------------------------------------
 install -m 644 files/motd "${ROOTFS_DIR}/etc/motd"

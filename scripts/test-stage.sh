@@ -88,7 +88,7 @@ reset_knobs() {
 	unset WIFI_SSID WIFI_PASSWORD WIFI_HIDDEN WIFI_INTERFACE
 	unset ENABLE_I2C ENABLE_SPI ENABLE_UART CONFIG_TXT_EXTRA
 	unset PERSISTENT_JOURNAL JOURNAL_MAX_USE ENABLE_UNATTENDED_UPGRADES
-	unset ENABLE_SERVICES DISABLE_SERVICES
+	unset ENABLE_SERVICES DISABLE_SERVICES PASSWORDLESS_SUDO
 	export ENABLE_CLOUD_INIT="1" WPA_COUNTRY="GB"
 }
 
@@ -148,6 +148,7 @@ assert_exec "${ROOTFS_DIR}/usr/local/bin/hello-custom"
 assert_file "${ROOTFS_DIR}/etc/systemd/system/hello-custom.service"
 assert_grep 'systemctl enable hello-custom.service' "${CHROOT_LOG}"
 assert_no_grep 'for unit in' "${CHROOT_LOG}"
+assert_no_grep 'do_sudo_pass' "${CHROOT_LOG}"
 assert_no_file "${ROOTFS_DIR}/stage-custom"
 assert_no_file "${ROOTFS_DIR}/secrets.env"
 
@@ -159,7 +160,7 @@ export WIFI_SSID='Café "Net" \ 5G' WIFI_PASSWORD='correct horse battery' WIFI_H
 export ENABLE_I2C=1 ENABLE_SPI=1 ENABLE_UART=1 CONFIG_TXT_EXTRA=$'gpu_mem=16\n\ndtoverlay=disable-bt'
 export ENABLE_SERVICES='hello-custom.service' DISABLE_SERVICES='bluetooth.service hciuart.service'
 export PERSISTENT_JOURNAL=0 ENABLE_UNATTENDED_UPGRADES=0
-printf 'CUSTOM_GIT_SHA=abc123\nCUSTOM_GIT_REF=main\nCUSTOM_BUILD_URL=https://example.test/run/1\n' > "${STAGE_DIR}/build-info.env"
+printf 'CUSTOM_GIT_SHA=abc123\nCUSTOM_GIT_REF=main\nCUSTOM_BUILD_URL=https://example.test/run/1\nPASSWORDLESS_SUDO=1\n' > "${STAGE_DIR}/build-info.env"
 run_stage
 rm -f "${STAGE_DIR}/build-info.env"
 assert_count '^dtparam=i2c_arm=on$' "${CFG}" 1
@@ -172,6 +173,7 @@ assert_grep 'Unattended-Upgrade "0"' "${ROOTFS_DIR}/etc/apt/apt.conf.d/20auto-up
 assert_no_file "${ROOTFS_DIR}/etc/apt/apt.conf.d/52unattended-upgrades-raspberrypi"
 assert_grep '^SOURCE_COMMIT=abc123$' "${ROOTFS_DIR}/etc/custom-image-release"
 assert_grep '^BUILD_URL=https://example.test/run/1$' "${ROOTFS_DIR}/etc/custom-image-release"
+assert_grep '^SUDO_USER="pi" raspi-config nonint do_sudo_pass 1$' "${CHROOT_LOG}"
 assert_grep 'for unit in hello-custom.service; do' "${CHROOT_LOG}"
 first_05="$(grep -n 'on_chroot from 05-hello-service' "${CHROOT_LOG}" | head -n1 | cut -d: -f1)"
 first_90="$(grep -n 'on_chroot from 90-services' "${CHROOT_LOG}" | head -n1 | cut -d: -f1)"

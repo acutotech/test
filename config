@@ -49,7 +49,7 @@ WPA_COUNTRY="GB"
 # PUBKEY_ONLY_SSH is 1, password logins over SSH are switched off.
 ENABLE_SSH="1"
 PUBKEY_ONLY_SSH="1"
-PASSWORDLESS_SUDO="0"
+PASSWORDLESS_SUDO="0"   # applied by pi-gen locally and by stage-custom in CI
 
 # cloud-init (NoCloud datasource: user-data and network-config on the boot
 # partition are applied on first boot). Needed for the baked-in Wi-Fi setup.

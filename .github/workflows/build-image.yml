@@ -103,6 +103,7 @@ jobs:
           SSH_AUTHORIZED_KEYS: ${{ secrets.SSH_AUTHORIZED_KEYS }}
           WIFI_SSID: ${{ secrets.WIFI_SSID }}
           WIFI_PASSWORD: ${{ secrets.WIFI_PASSWORD }}
+          PASSWORDLESS_SUDO: ${{ steps.cfg.outputs.passwordless_sudo }}
           REPO_IS_PRIVATE: ${{ github.event.repository.private }}
           ALLOW_SECRETS_IN_PUBLIC_IMAGE: ${{ vars.ALLOW_SECRETS_IN_PUBLIC_IMAGE }}
         shell: bash
@@ -146,8 +147,27 @@ jobs:
             printf 'CUSTOM_GIT_SHA=%q\n' "${GITHUB_SHA}"
             printf 'CUSTOM_GIT_REF=%q\n' "${GITHUB_REF_NAME}"
             printf 'CUSTOM_BUILD_URL=%q\n' "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            # pi-gen-action v1.11.0 has no passwordless-sudo input; the stage applies it.
+            printf 'PASSWORDLESS_SUDO=%q\n' "${PASSWORDLESS_SUDO}"
           } > stage-custom/build-info.env
           echo "Wi-Fi: $([ -n "${WIFI_SSID}" ] && echo configured || echo 'not configured (no WIFI_SSID secret)')"
+
+      - name: Free runner disk space
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "before: $(df -h --output=avail / | tail -1 | tr -d ' ') free on /"
+          # pi-gen-action's own cleanup (increase-runner-disk-size) runs apt purge
+          # with x86-only package names and fails on arm64 runners (v1.11.0), so
+          # free space here with plain path removals that need nothing from apt.
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup \
+            /usr/local/share/boost /usr/share/swift /usr/local/julia* /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/chromium /opt/google /opt/microsoft /usr/lib/mono /opt/az \
+            /usr/share/miniconda /opt/pipx /usr/local/share/powershell
+          sudo docker system prune --all --force --volumes > /dev/null 2>&1 || true
+          sudo swapoff -a 2> /dev/null || true
+          sudo rm -f /mnt/swapfile /swapfile
+          echo "after:  $(df -h --output=avail / | tail -1 | tr -d ' ') free on /"
 
       - name: Build with pi-gen
         id: build
@@ -165,7 +185,6 @@ jobs:
           # user wizard; with one, the user is usable immediately.
           password: ${{ secrets.FIRST_USER_PASS }}
           disable-first-boot-user-rename: ${{ secrets.FIRST_USER_PASS != '' && '1' || '0' }}
-          passwordless-sudo: ${{ steps.cfg.outputs.passwordless_sudo }}
           enable-ssh: ${{ steps.cfg.outputs.enable_ssh }}
           pubkey-ssh-first-user: ${{ secrets.SSH_AUTHORIZED_KEYS }}
           pubkey-only-ssh: ${{ secrets.SSH_AUTHORIZED_KEYS != '' && steps.cfg.outputs.pubkey_only_ssh || '0' }}
@@ -177,7 +196,8 @@ jobs:
           enable-cloud-init: ${{ steps.cfg.outputs.enable_cloud_init }}
           compression: ${{ steps.cfg.outputs.deploy_compression }}
           compression-level: ${{ steps.cfg.outputs.compression_level }}
-          increase-runner-disk-size: true
+          # Disabled: v1.11.0's cleanup fails on arm64 runners (see step above).
+          increase-runner-disk-size: false
           # pi-gen's work directory (and its build.log) normally lives only inside
           # the build container, which the action removes afterwards. Mount it on
           # the runner so the log can be uploaded when the build fails.

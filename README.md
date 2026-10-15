@@ -265,8 +265,12 @@ stage-custom/
   exists" means run `make clean` (or `--continue`) first. In CI the full pi-gen output
   is in the job log (grouped per stage) and `build.log` is uploaded as the
   `build-log` artifact.
-* **"No space left on device" in CI:** the workflow already trims the runner.
-  Drop packages, or do not build the Desktop stages.
+* **"No space left on device" in CI:** the workflow already removes unneeded
+  runner tooling before the build (its log prints free space before and
+  after). Drop packages, or do not build the Desktop stages.
+* **pi-gen-action fails before pi-gen starts with `apt purge` errors:** its
+  `increase-runner-disk-size` option is broken on arm64 runners in v1.11.0;
+  the workflow keeps it off and does its own cleanup.
 * **Wi-Fi does not connect:** check `WPA_COUNTRY`, that the SSID is 2.4 GHz
   capable for Zero 2 W / Pi 3, and `WIFI_HIDDEN` for hidden networks. On the
   device: `cloud-init status --long`, `nmcli device`, `/var/log/cloud-init.log`.
