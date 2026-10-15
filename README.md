@@ -91,11 +91,13 @@ package per line, `#` comments allowed. Append `-` to remove a package the
 Lite image ships, for example `build-essential-`. Packages that need
 `--no-install-recommends` go in a `00-packages-nr` file next to it.
 
-### Identity, locale, SSH (`config`)
+### Identity, locale, SSH, base stages (`config`)
 
 Hostname, first user name, locale, keyboard, time zone, Wi-Fi country, SSH
-policy and output compression. The same file drives local and CI builds, so
-there is one place to edit. Keep secrets out of it.
+policy, output compression and the upstream stages to build (`BASE_STAGES`).
+The same file drives local and CI builds: the workflow forwards exactly the
+variables defined there to pi-gen-action and fails if you add one it does not
+know, so nothing can apply to one build path only. Keep secrets out of it.
 
 ### Switches (`stage-custom/custom.conf`)
 
@@ -139,8 +141,8 @@ EOF
 Copy that directory, rename it (keep the two-digit prefix), replace the files.
 Sub-stages run in name order; `90-services` runs last on purpose so
 `ENABLE_SERVICES` can refer to units your own sub-stages install. `make test`
-fails if a `*-run.sh` is not executable, because pi-gen would skip it
-silently.
+fails if a `*-run.sh` is not executable: pi-gen only logs a `Skip` line for
+it and the build succeeds without your changes.
 
 ### Boot firmware (`config.txt`, `cmdline.txt`)
 
@@ -162,9 +164,9 @@ and the [cloud-init docs](https://cloudinit.readthedocs.io/).
 
 ### Changing the base
 
-* **Desktop instead of Lite:** set the workflow / `STAGE_LIST` to
-  `stage0 stage1 stage2 stage3 stage4 ./stage-custom`. Expect a 3-4 GB image
-  and a much longer build.
+* **Desktop instead of Lite:** set `BASE_STAGES="stage0 stage1 stage2 stage3
+  stage4"` in `config` and change `IMG_SUFFIX` in `stage-custom/EXPORT_IMAGE`
+  (for example to `-desktop`). Expect a 3-4 GB image and a much longer build.
 * **32-bit (Pi 1, Pi 2 v1.1, Zero, Zero W):** pi-gen builds armhf from its
   `master` branch. Set `pi-gen-ref` / `PI_GEN_REF` to `master`. 32-bit trixie
   images have had teething problems upstream; check pi-gen's issue tracker
@@ -192,7 +194,8 @@ ls pi-gen/deploy/
 composes `build/config` from `config` plus your secrets, mounts
 `stage-custom/` into the build container and runs pi-gen's `build-docker.sh`.
 Resume a failed build with `make build CONTINUE=1`
-(`scripts/build-local.sh --continue`).
+(`scripts/build-local.sh --continue`), or start over with `make clean`, which
+also removes pi-gen's `pigen_work` Docker container.
 
 Native build without Docker, on a Debian-based host with the packages from
 `pi-gen/depends` installed: `make build-native` (uses `sudo`).
@@ -258,7 +261,8 @@ stage-custom/
 ## Troubleshooting
 
 * **Build fails in stage0 (debootstrap) or with apt errors:** usually a mirror
-  hiccup; re-run. Locally, `--continue` resumes. In CI the full pi-gen output
+  hiccup; re-run. Locally, `--continue` resumes; "Container pigen_work already
+  exists" means run `make clean` (or `--continue`) first. In CI the full pi-gen output
   is in the job log (grouped per stage) and `build.log` is uploaded as the
   `build-log` artifact.
 * **"No space left on device" in CI:** the workflow already trims the runner.

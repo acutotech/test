@@ -1,9 +1,9 @@
 name: Build image
 
 on:
+  # Every push and pull request gets lint + dry-run; the image build below is
+  # gated to main, v* tags and manual runs.
   push:
-    branches: [main]
-    tags: ["v*"]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -53,8 +53,11 @@ jobs:
   build:
     name: Build image
     needs: lint
-    # Full builds take a long time; pull requests get lint + dry-run only.
-    if: github.event_name != 'pull_request'
+    # Full builds take a long time: only main, release tags and manual runs.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || github.ref == 'refs/heads/main'
+      || startsWith(github.ref, 'refs/tags/v')
     runs-on: ${{ inputs.runner || 'ubuntu-24.04-arm' }}
     timeout-minutes: 300
     concurrency:
@@ -72,10 +75,19 @@ jobs:
           set -euo pipefail
           # shellcheck disable=SC1091
           source ./config
-          for var in IMG_NAME PI_GEN_RELEASE RELEASE TARGET_HOSTNAME FIRST_USER_NAME \
-                     LOCALE_DEFAULT KEYBOARD_KEYMAP KEYBOARD_LAYOUT TIMEZONE_DEFAULT WPA_COUNTRY \
-                     ENABLE_SSH PUBKEY_ONLY_SSH PASSWORDLESS_SUDO ENABLE_CLOUD_INIT \
-                     DEPLOY_COMPRESSION COMPRESSION_LEVEL; do
+          known=(IMG_NAME PI_GEN_RELEASE RELEASE BASE_STAGES TARGET_HOSTNAME FIRST_USER_NAME
+                 LOCALE_DEFAULT KEYBOARD_KEYMAP KEYBOARD_LAYOUT TIMEZONE_DEFAULT WPA_COUNTRY
+                 ENABLE_SSH PUBKEY_ONLY_SSH PASSWORDLESS_SUDO ENABLE_CLOUD_INIT
+                 DEPLOY_COMPRESSION COMPRESSION_LEVEL)
+          # Every assignment in config must be one this workflow forwards, or it
+          # would silently apply to local builds only.
+          while read -r name; do
+            if [[ " ${known[*]} " != *" ${name} "* ]]; then
+              echo "::error file=config::${name} is set in config but the workflow does not forward it to pi-gen-action"
+              exit 1
+            fi
+          done < <(grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' ./config | tr -d '=')
+          for var in "${known[@]}"; do
             value="${!var:-}"
             if [[ "${value}" == *$'\n'* ]]; then
               echo "::error file=config::${var} must be a single line"
@@ -145,7 +157,7 @@ jobs:
           pi-gen-version: ${{ inputs.pi-gen-ref || 'arm64' }}
           pi-gen-release: ${{ steps.cfg.outputs.pi_gen_release }}
           release: ${{ steps.cfg.outputs.release }}
-          stage-list: stage0 stage1 stage2 ./stage-custom
+          stage-list: ${{ steps.cfg.outputs.base_stages }} ./stage-custom
           export-last-stage-only: true
           hostname: ${{ steps.cfg.outputs.target_hostname }}
           username: ${{ steps.cfg.outputs.first_user_name }}

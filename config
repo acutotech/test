@@ -6,6 +6,10 @@
 #   * local builds   -> scripts/build-local.sh
 #   * GitHub Actions -> .github/workflows/build-image.yml ("Read build config")
 #
+# The workflow forwards exactly the variables defined in this file to
+# pi-gen-action and fails on any other assignment, so a new setting cannot
+# silently apply to local builds only.
+#
 # Secrets never belong here. Passwords, SSH keys and Wi-Fi credentials go in
 # stage-custom/secrets.env (git-ignored) or GitHub Actions secrets.
 # Non-secret image tweaks (packages, interfaces, services) live in
@@ -16,6 +20,11 @@ IMG_NAME="custom-raspios"
 
 # Written to /etc/rpi-issue and /boot/firmware/issue.txt inside the image.
 PI_GEN_RELEASE="Custom Raspberry Pi OS"
+
+# Upstream pi-gen stages built before stage-custom. "stage0 stage1 stage2" is
+# Raspberry Pi OS Lite; "stage0 stage1 stage2 stage3 stage4" is the desktop
+# image (then also change IMG_SUFFIX in stage-custom/EXPORT_IMAGE).
+BASE_STAGES="stage0 stage1 stage2"
 
 # Debian release. pi-gen's arm64 branch targets trixie; another release needs
 # a matching pi-gen branch (PI_GEN_REF in scripts/build-local.sh, pi-gen-ref

@@ -33,5 +33,6 @@ build: ## Build the image with Docker (see scripts/build-local.sh --help)
 build-native: ## Build the image natively (Debian/Raspberry Pi OS host, needs sudo)
 	scripts/build-local.sh --native
 
-clean: ## Remove local build outputs (keeps the pi-gen checkout)
+clean: ## Remove local build outputs and pi-gen's Docker container (keeps the pi-gen checkout)
 	rm -rf build deploy pi-gen/work pi-gen/deploy
+	-docker rm -v pigen_work 2>/dev/null

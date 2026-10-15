@@ -102,7 +102,7 @@ for sub in "${STAGE_DIR}"/*/; do
 	if [[ "${name}" =~ ^[0-9]{2}- ]]; then ok "sub-stage ${name} is numbered"; else fail "sub-stage ${name} must start with two digits"; fi
 	for f in "${sub}"[0-9][0-9]-run.sh; do
 		[ -e "${f}" ] || continue
-		if [ -x "${f}" ]; then ok "${name}/$(basename "${f}") is executable"; else fail "${name}/$(basename "${f}") is NOT executable: pi-gen would silently skip it"; fi
+		if [ -x "${f}" ]; then ok "${name}/$(basename "${f}") is executable"; else fail "${name}/$(basename "${f}") is NOT executable: pi-gen would log 'Skip' and build without it"; fi
 		bash -n "${f}" && ok "${name}/$(basename "${f}") parses"
 	done
 	for f in "${sub}"[0-9][0-9]-run-chroot.sh; do
