@@ -1,0 +1,7 @@
+// Installed by stage-custom.
+// Debian's default only allows Debian security updates. Also allow updates
+// from the Raspberry Pi archive (kernel, firmware, raspi-config, ...).
+// Check the origin on a running device with: apt-cache policy | grep -i raspberry
+Unattended-Upgrade::Origins-Pattern {
+        "origin=Raspberry Pi Foundation,codename=${distro_codename}";
+};

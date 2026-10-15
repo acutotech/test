@@ -1,0 +1,10 @@
+[Unit]
+Description=Example custom service: log image identity at boot
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/hello-custom
+
+[Install]
+WantedBy=multi-user.target
