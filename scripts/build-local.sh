@@ -101,6 +101,16 @@ if [ -f "${STAGE_DIR}/secrets.env" ]; then
 	unset env_backup
 fi
 
+# pi-gen feeds FIRST_USER_PASS to chpasswd through an unquoted heredoc, so a few
+# characters would silently change the password.
+if [[ "${FIRST_USER_PASS:-}" == *[\"\$\`\\]* || "${FIRST_USER_PASS:-}" == *$'\n'* ]]; then
+	die 'FIRST_USER_PASS must not contain " $ ` \ or newlines (pi-gen limitation)'
+fi
+if [ -n "${PUBKEY_SSH_FIRST_USER:-}" ] && [ -z "${FIRST_USER_PASS:-}" ]; then
+	echo "warning: PUBKEY_SSH_FIRST_USER is set but FIRST_USER_PASS is not. pi-gen leaves the user's shell" >&2
+	echo "         as nologin until a password exists, so SSH key logins are refused. Set FIRST_USER_PASS." >&2
+fi
+
 # --- pi-gen checkout ---------------------------------------------------------
 if [ ! -d "${PI_GEN_DIR}/.git" ]; then
 	echo "Cloning pi-gen (${PI_GEN_REF}) into ${PI_GEN_DIR}"

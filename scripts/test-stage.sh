@@ -126,8 +126,9 @@ reset_knobs
 make_rootfs
 run_stage
 CFG="${ROOTFS_DIR}/boot/firmware/config.txt"
-assert_grep '^\[all\]$' "${CFG}"
+assert_count '^\[all\]$' "${CFG}" 2
 assert_count '^# --- stage-custom' "${CFG}" 1
+assert_eq "$(grep -B1 -E '^# --- stage-custom' "${CFG}" | head -n1)" "[all]" "marker block opens with [all]"
 assert_no_grep '^dtparam=i2c_arm=on' "${CFG}"
 assert_no_grep '^dtparam=spi=on' "${CFG}"
 assert_no_grep '^enable_uart=1' "${CFG}"
@@ -172,6 +173,13 @@ assert_no_file "${ROOTFS_DIR}/etc/apt/apt.conf.d/52unattended-upgrades-raspberry
 assert_grep '^SOURCE_COMMIT=abc123$' "${ROOTFS_DIR}/etc/custom-image-release"
 assert_grep '^BUILD_URL=https://example.test/run/1$' "${ROOTFS_DIR}/etc/custom-image-release"
 assert_grep 'for unit in hello-custom.service; do' "${CHROOT_LOG}"
+first_05="$(grep -n 'on_chroot from 05-hello-service' "${CHROOT_LOG}" | head -n1 | cut -d: -f1)"
+first_90="$(grep -n 'on_chroot from 90-services' "${CHROOT_LOG}" | head -n1 | cut -d: -f1)"
+if [ -n "${first_05}" ] && [ -n "${first_90}" ] && [ "${first_05}" -lt "${first_90}" ]; then
+	ok "services sub-stage runs after the example unit is installed"
+else
+	fail "services sub-stage must run after sub-stages that install units (05 at line ${first_05:-?}, 90 at line ${first_90:-?})"
+fi
 assert_grep 'for unit in bluetooth.service hciuart.service; do' "${CHROOT_LOG}"
 # shellcheck disable=SC2016  # the chroot script must contain a literal "$unit"
 assert_grep 'systemctl disable "\$unit"' "${CHROOT_LOG}"
@@ -208,6 +216,7 @@ fi
 echo "Scenario 3: running the stage twice does not duplicate config.txt lines"
 run_stage
 assert_count '^# --- stage-custom' "${CFG}" 1
+assert_count '^\[all\]$' "${CFG}" 2
 assert_count '^dtparam=i2c_arm=on$' "${CFG}" 1
 assert_count '^gpu_mem=16$' "${CFG}" 1
 

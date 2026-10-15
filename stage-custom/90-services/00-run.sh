@@ -1,6 +1,9 @@
 #!/bin/bash -e
 # Enable or disable systemd units listed in custom.conf (ENABLE_SERVICES,
 # DISABLE_SERVICES). Runs systemctl inside the image chroot.
+#
+# Numbered 90 so it runs after every sub-stage that installs units: systemctl
+# enable fails for a unit that does not exist yet.
 
 # shellcheck source=../lib.sh
 source "${STAGE_DIR}/lib.sh"

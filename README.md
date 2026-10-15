@@ -44,7 +44,7 @@ Defaults, all changeable:
 
    | Secret | Effect |
    | --- | --- |
-   | `FIRST_USER_PASS` | password for the first user; the account is usable right after flashing and the first-boot wizard is skipped |
+   | `FIRST_USER_PASS` | password for the first user; the account is usable right after flashing and the first-boot wizard is skipped. Must not contain `"`, `$`, `` ` `` or `\` (pi-gen limitation; the workflow checks) |
    | `SSH_AUTHORIZED_KEYS` | contents of `~/.ssh/authorized_keys` for the first user; with `PUBKEY_ONLY_SSH="1"` (default) SSH password logins are disabled |
    | `WIFI_SSID`, `WIFI_PASSWORD` | Wi-Fi network joined on first boot (cloud-init → netplan → NetworkManager) |
 
@@ -64,12 +64,13 @@ Defaults, all changeable:
 | At build time you set | What happens on first boot |
 | --- | --- |
 | `FIRST_USER_PASS` (optionally `SSH_AUTHORIZED_KEYS`) | the user exists with that password, SSH is up: `ssh pi@custompi.local` or log in on the console. With a key and `PUBKEY_ONLY_SSH="1"`, SSH accepts keys only. |
-| only `SSH_AUTHORIZED_KEYS` | pi-gen leaves the password locked, so the standard Raspberry Pi user wizard is armed on the console. Key login over SSH works, but `sudo` needs a password: set `FIRST_USER_PASS` or `PASSWORDLESS_SUDO="1"` for a headless device. |
+| only `SSH_AUTHORIZED_KEYS` | **not usable headless.** pi-gen creates the user with `adduser --disabled-login`, which on trixie sets the shell to `/usr/sbin/nologin` until a password is set, so SSH refuses the key login, and the console wizard is armed. Set `FIRST_USER_PASS` as well; the workflow prints a warning if you don't. |
 | nothing | identical to the official Lite image: the console asks for a username and password. Headless alternatives: Raspberry Pi Imager 2.0 *OS customisation*, or a `userconf.txt` on the boot partition containing `pi:<hash>` with the hash from `openssl passwd -6`. |
 
 Wi-Fi joins automatically when the `WIFI_*` secrets were set; Ethernet uses
-DHCP in any case. `WPA_COUNTRY` in `config` must match where the device is
-used, otherwise the radio stays blocked.
+DHCP in any case. `WPA_COUNTRY` in `config` must be set, or pi-gen ships the
+radio soft-blocked; set it to the country the device is used in so the right
+channels are allowed.
 
 `cloud-init` runs on the first boot only. To re-run it after editing
 `user-data`, run `sudo cloud-init clean --logs` and reboot.
@@ -133,8 +134,10 @@ EOF
 ```
 
 Copy that directory, rename it (keep the two-digit prefix), replace the files.
-`make test` fails if a `*-run.sh` is not executable, because pi-gen would skip
-it silently.
+Sub-stages run in name order; `90-services` runs last on purpose so
+`ENABLE_SERVICES` can refer to units your own sub-stages install. `make test`
+fails if a `*-run.sh` is not executable, because pi-gen would skip it
+silently.
 
 ### Boot firmware (`config.txt`, `cmdline.txt`)
 
@@ -219,9 +222,10 @@ stage-custom/
   00-packages/00-packages       extra packages
   01-system/                    config.txt, journald, unattended-upgrades, motd
   02-cloud-init/                user-data template, Wi-Fi network-config
-  03-services/                  enable/disable systemd units
   04-release-info/              /etc/custom-image-release (what was built from what)
   05-hello-service/             example: ship a script + systemd unit
+  90-services/                  enable/disable systemd units (runs last)
+  secrets.env.example           template for secrets.env
   secrets.env                   git-ignored, your secrets (local builds)
   build-info.env                git-ignored, generated per build
 .github/workflows/build-image.yml
@@ -257,6 +261,9 @@ stage-custom/
   clean --logs && sudo reboot`.
 * **`*-run.sh` did nothing:** it is not executable (`chmod +x`); `make test`
   reports this.
+* **SSH says "This account is currently not available" or closes at once:**
+  the first user has no password, so its shell is `nologin`. Set
+  `FIRST_USER_PASS` and rebuild, or finish the console wizard once.
 * **x86-64 runner is slow or fails in QEMU:** use `ubuntu-24.04-arm`.
 
 ## Alternatives

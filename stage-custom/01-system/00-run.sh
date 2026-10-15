@@ -6,8 +6,9 @@
 source "${STAGE_DIR}/lib.sh"
 
 # --- /boot/firmware/config.txt --------------------------------------------------
-# pi-gen's config.txt ends with an [all] section, so everything appended here
-# applies to every board. Re-running the stage must not duplicate lines.
+# Our block opens its own [all] section so the lines apply to every board even
+# if upstream's config.txt stops ending with [all]. Re-running the stage must
+# not duplicate lines.
 CONFIG_TXT="${ROOTFS_DIR}/boot/firmware/config.txt"
 MARKER="# --- stage-custom: settings from stage-custom/custom.conf ---"
 
@@ -17,7 +18,7 @@ if [ ! -f "${CONFIG_TXT}" ]; then
 fi
 
 if ! grep -qxF -- "${MARKER}" "${CONFIG_TXT}"; then
-	printf '\n%s\n' "${MARKER}" >> "${CONFIG_TXT}"
+	printf '\n[all]\n%s\n' "${MARKER}" >> "${CONFIG_TXT}"
 fi
 if [ "${ENABLE_I2C}" = "1" ]; then
 	ensure_line "${CONFIG_TXT}" "dtparam=i2c_arm=on"
