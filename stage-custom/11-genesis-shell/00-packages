@@ -11,6 +11,7 @@ python3-pywayland
 python3-cffi-backend
 python3-pil
 libwayland-dev
+pkg-config
 libglib2.0-bin
 dbus-user-session
 # compositor and Wayland utilities used by the session
