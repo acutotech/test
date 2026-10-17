@@ -1,16 +1,19 @@
 # Genesis OS
 
 A custom Raspberry Pi OS image for the **NodoAI box**: 64-bit Raspberry Pi OS
-Desktop (Debian trixie) with a dark "liquid glass" look, your logo on the
-boot splash, login screen and app menu, Visual Studio Code, Python 3.10 and
-3.13, Chromium, a Genesis Settings app, and the hardware interfaces switched
-on. Built with [pi-gen](https://github.com/RPi-Distro/pi-gen), the tool that
-produces the official images, in **GitHub Actions** or **locally with
-Docker**.
+(Debian trixie) running **Genesis Shell**, a desktop written for this image:
+floating glass panel, full-screen app launcher, control center, notifications,
+on-screen display, power dialog and wallpaper, all drawn by our own code on top
+of labwc, the compositor Raspberry Pi ships and tests on the Pi 5. Plus the
+Genesis logo on the boot splash and login screen, Visual Studio Code, Python
+3.10 and 3.13, Chromium, a Genesis Settings app, and the hardware interfaces
+switched on. Built with [pi-gen](https://github.com/RPi-Distro/pi-gen), the
+tool that produces the official images, in **GitHub Actions** or **locally
+with Docker**.
 
 Output: `image_<date>-genesis-os-desktop.img.xz`, flashable with Raspberry
-Pi Imager, plus a package list (`.info`), the build log and, from CI,
-`SHA256SUMS`.
+Pi Imager, plus a package list (`.info`), `SHA256SUMS`, and the screenshots
+of the desktop that CI took inside the image before publishing it.
 
 ## What the image contains
 
@@ -21,25 +24,28 @@ Pi Imager, plus a package list (`.info`), the build log and, from CI,
 | User | `nodoai`; password from secret `FIRST_USER_PASS` | `config`, secrets |
 | Wi-Fi | network from secrets `WIFI_SSID` / `WIFI_PASSWORD`, country `IN` | secrets, `config` |
 | Locale, keyboard, time zone | `en_US.UTF-8`, `us`, `Asia/Kolkata` | `config` |
-| Desktop session | **Genesis Glass**: Wayfire 0.9 with background blur, animations, shadows. Fallback: Raspberry Pi's labwc session, selectable at login or in Genesis Settings | `GENESIS_SESSION` in `stage-custom/custom.conf` |
-| Look | GTK theme *GenesisGlass* (translucent panel, frosted menus, rounded corners, steel-blue accent), Inter + JetBrains Mono fonts, Genesis icon theme (logo as the menu icon), 5 wallpapers | `stage-custom/11-glass-theme`, `stage-custom/10-branding` |
-| Boot | Plymouth splash with the Genesis logo, boot straight into the desktop as `nodoai` | `ENABLE_BOOT_SPLASH`, `DESKTOP_AUTOLOGIN` |
-| Apps | Visual Studio Code (Microsoft repository) with the Python extensions, Chromium as default browser, the full Raspberry Pi desktop application set | `INSTALL_VSCODE`, `VSCODE_EXTENSIONS`, `DEFAULT_BROWSER` |
+| Desktop | **Genesis** session: labwc + Genesis Shell (see below). Raspberry Pi's stock labwc desktop stays installed as a fallback, selectable on the login screen | `stage-custom/11-genesis-shell` |
+| Look | dark glass: translucent panel and cards over a blurred copy of the wallpaper, 16px rounded corners, steel-blue accent, Inter + JetBrains Mono, Papirus icons, five wallpapers | `GENESIS_ACCENT`, `GENESIS_WALLPAPER` in `custom.conf`; Genesis Settings |
+| Boot | Plymouth splash with the Genesis logo, straight into the desktop as `nodoai` | `ENABLE_BOOT_SPLASH`, `DESKTOP_AUTOLOGIN` |
+| Apps | Visual Studio Code (Microsoft repository) with the Python extensions, Chromium as default browser, the Raspberry Pi desktop application set | `INSTALL_VSCODE`, `VSCODE_EXTENSIONS`, `DEFAULT_BROWSER` |
 | Python | `python` = CPython 3.10.22 under `/opt/python` (user default, VS Code interpreter); `python3` = the OS's 3.13; `uv` installed for more versions | `PYTHON_PRIMARY` |
 | Interfaces | I2C, SPI, serial port (UART on GPIO 14/15, Pi 5 `uart0`), SSH, VNC (wayvnc) on; serial console and 1-Wire off | `ENABLE_*` in `custom.conf` |
-| Settings | **Genesis Settings** (interfaces, system, appearance incl. wallpaper and session, connectivity, display and sound, software, about) plus Raspberry Pi Configuration and Appearance Settings | `stage-custom/12-genesis-settings` |
-| Panel | Raspberry Pi panel at the top: menu, launchers (Chromium, VS Code, Files, Terminal, Genesis Settings), window list, tray, power, updater, Bluetooth, Wi-Fi, volume, clock | `GENESIS_PANEL_*` |
-| Behaviour | persistent journal, automatic security updates, cloud-init seed files on the boot partition | `custom.conf` |
+| Settings | **Genesis Settings** (interfaces, system, appearance, connectivity, display and sound, software, about) plus Raspberry Pi Configuration | `stage-custom/12-genesis-settings` |
+| Behaviour | persistent journal, automatic security updates, cloud-init seed files on the boot partition, screen blanks after 10 minutes | `custom.conf` |
 
 Why these choices, in two sentences each:
 
-* **Wayfire, not a from-scratch desktop.** Real blur needs a compositor that
-  renders it; Raspberry Pi's labwc refuses blur by design, and a new desktop
-  environment is years of work. Wayfire is in the Raspberry Pi trixie archive,
-  runs the stock Pi panel, desktop and VNC server unchanged, and ran Raspberry
-  Pi OS by default on Pi 4/5 in Bookworm, so performance on a Pi 5 is known.
-  Raspberry Pi no longer supports it officially, which is why the labwc session
-  stays installed and the build falls back to it if the package disappears.
+* **Our own shell, not our own compositor.** What a user sees and touches is
+  the shell (panel, launcher, menus, notifications), so that is what we wrote;
+  a Wayland compositor is years of work and would be less finished than
+  labwc, which Raspberry Pi maintains and tunes for the Pi 5's GPU. The first
+  attempt (Wayfire plus Raspberry Pi's panel) booted to a white screen and
+  was replaced.
+* **Glass without compositor blur.** labwc does not blur what is behind a
+  window, so the shell draws each surface over a pre-blurred, darkened copy
+  of the wallpaper; the panel, launcher, cards and dialogs look frosted at
+  zero GPU cost, and windows under the panel are never there anyway because
+  the panel reserves its space.
 * **Python 3.10 as `python`, not as `python3`.** The OS, apt and raspi-config
   run on the system 3.13; replacing it breaks them. 3.10.22 is the last 3.10
   release and the series is end-of-life, so plan to move your code to 3.12 or
@@ -67,9 +73,12 @@ Why these choices, in two sentences each:
    | `WIFI_PASSWORD` | `nodoai@123` |
    | `SSH_AUTHORIZED_KEYS` | optional: your public key(s) |
 
-3. *Actions → Build image → Run workflow*, or push to `main`. Expect roughly
-   40-70 minutes for the desktop build on the arm64 runner; `ubuntu-latest`
-   (x86-64 with QEMU) takes several times longer.
+3. *Actions → Build image → Run workflow*, or push to `main`. The workflow
+   first lints, dry-runs the stage and renders the shell headless on an arm64
+   container (about 5 minutes; screenshots in the `genesis-shell-preview`
+   artifact), then builds the image (about 20 minutes on the arm64 runner),
+   then mounts the image, starts the Genesis session inside it and screenshots
+   it (`genesis-image-smoke` artifact). A blank desktop fails the build.
 4. Download the `genesis-os` artifact and unzip it.
 5. Flash `image_*.img.xz`: Raspberry Pi Imager (*Use custom*), or
    `xzcat image_*.img.xz | sudo dd of=/dev/sdX bs=4M status=progress conv=fsync`.
@@ -81,10 +90,10 @@ Why these choices, in two sentences each:
 ## First boot
 
 With the secrets above set, the box boots to the Genesis splash, logs
-`nodoai` into the Genesis Glass desktop, joins the `NodoAI` Wi-Fi, and
-answers on `nodobox.local` for SSH and VNC with the password `root@nodoai`.
-Without `FIRST_USER_PASS` the image behaves like the official one: the
-first-boot wizard asks for a username and password.
+`nodoai` into the Genesis desktop, joins the `NodoAI` Wi-Fi, and answers on
+`nodobox.local` for SSH and VNC with the password `root@nodoai`. Without
+`FIRST_USER_PASS` the image behaves like the official one: the first-boot
+wizard asks for a username and password.
 
 | At build time you set | What happens on first boot |
 | --- | --- |
@@ -101,26 +110,51 @@ channels are allowed.
 
 ## The desktop
 
-* **Genesis Glass** (default) is Wayfire with `~/.config/wayfire.ini` seeded
-  from `/etc/wayfire/genesis.ini`: kawase blur behind the panel, menus and
-  terminal, zoom animations, drop shadows, wobbly windows, rounded panel
-  controls. Super+B toggles blur live; Super+E shows all windows; Super+I
-  opens Genesis Settings; Ctrl+Alt+T opens a terminal; Print takes a
-  screenshot into `~/Pictures`. `wcm` (Wayfire Config Manager) edits every
-  option graphically.
-* **Raspberry Pi labwc** is the stock session with the same theme, rounded
-  titlebars and shadows but no blur. Switch in Genesis Settings → Appearance
-  → Desktop session, or pick it on the login screen. It is also what the
-  image falls back to if Wayfire ever leaves the Raspberry Pi archive.
-* **Genesis Settings** (menu, panel, Super+I) drives `raspi-config` for
+Genesis Shell is one Python/GTK process per session (about 70 MB, idle at 0%
+CPU) drawing on wlr-layer-shell surfaces; labwc places and decorates the
+application windows.
+
+* **Panel** (floating, top): Genesis logo opens the launcher; the dock shows
+  pinned apps (Chromium, VS Code, Files, Terminal, Genesis Settings) and
+  every running app with an indicator, click to focus or minimise,
+  right-click for windows, pin/unpin, close; the clock opens the calendar and
+  notification center; the status pill (network, Bluetooth, volume, battery
+  when present) opens the control center.
+* **Launcher**: full-screen over the blurred wallpaper, search box with
+  type-ahead, category chips, keyboard navigation, user and power buttons.
+  Super, Super+Space or Super+A.
+* **Control center**: volume and output device, brightness when a backlight
+  exists, tiles for Wi-Fi (with a network list and password entry),
+  Bluetooth (paired devices, connect/disconnect, pairing through Blueman),
+  Do Not Disturb, Night Light (when `wlsunset` is installed), screenshot and
+  display settings; lock, settings and power buttons. Super+C.
+* **Notifications**: a real `org.freedesktop.Notifications` server with
+  toasts (actions, images, urgency), a notification center with Do Not
+  Disturb behind the clock, and an unread badge. Super+N.
+* **On-screen display** for volume and brightness keys; **power dialog**
+  (lock with swaylock, log out, restart, shut down) on Ctrl+Alt+Del or the
+  power key; **screenshots** with Print (screen) and Shift+Print (area) into
+  `~/Pictures/Screenshots`, copied to the clipboard.
+* **Windows**: rounded server-side decorations with shadows, Super+arrows to
+  snap and maximise, Super+Q to close, Alt+Tab switcher with previews, four
+  workspaces (Super+1..4, Super+Shift+1..4 to move), Ctrl+Alt+M magnifier.
+  Super+Return or Super+T opens a terminal, Super+E the file manager,
+  Super+B the browser, Super+I Genesis Settings, Super+L locks.
+* **Genesis Settings** (menu, dock, Super+I) drives `raspi-config` for
   interfaces, hostname, time zone, locale, boot options and Wi-Fi country,
-  controls wayvnc, switches wallpapers and sessions, and links to the
-  Raspberry Pi tools for screens, sound, networks and software. Privileged
-  changes prompt for the password through the Pi's askpass dialog, or run
-  silently if `PASSWORDLESS_SUDO="1"`.
-* One caveat: Raspberry Pi Configuration's own *VNC* switch only recognises
-  the labwc session. Under Genesis Glass use the VNC switch in Genesis
-  Settings; it manages the same wayvnc service.
+  controls wayvnc, and on its Appearance page sets the wallpaper, accent
+  colour, panel position, glass opacity and screen blanking, which the shell
+  applies live. Privileged changes prompt for the password through the Pi's
+  askpass dialog, or run silently if `PASSWORDLESS_SUDO="1"`.
+* **Configuration**: `/etc/genesis/shell.conf` (image defaults, rendered
+  from `custom.conf`) overlaid by `~/.config/genesis/shell.conf`; labwc
+  config in `/etc/xdg/genesis/labwc/` (copy to `~/.config/genesis/labwc/`
+  to customise keybindings or the theme); `genesis-shell-ctl --help` lists
+  the commands keybindings use.
+* **Testing without a Pi**: `/usr/share/genesis-shell/preview.sh DIR` starts
+  the whole session on a virtual output and writes screenshots to DIR. CI
+  runs it on a trixie container before building and inside the finished
+  image after building.
 
 ## Customising the image
 
@@ -280,13 +314,15 @@ stage-custom/
   08-python/                    CPython 3.10 under /opt/python as "python", uv
   09-vscode/                    VS Code, default settings, Python extensions
   10-branding/                  icons, Genesis icon theme, wallpapers, Plymouth splash, login screen
-  11-glass-theme/               GenesisGlass GTK theme, panel, desktop, terminal, labwc, Wayfire session
+  11-genesis-shell/             Genesis Shell (files/genesis-shell), labwc session config, GTK theme,
+                                install.sh (shared with CI) and preview.sh (headless smoke test)
   12-genesis-settings/          Genesis Settings app and its privileged helper
-  13-system-defaults/           interfaces, VNC, browser, autologin, session, splash flags
+  13-system-defaults/           interfaces, VNC, browser, autologin, default session, splash flags
   90-services/                  enable/disable systemd units (runs last)
   secrets.env.example           template for secrets.env
 branding/src/                   the logo and wallpaper the assets are generated from
 scripts/make-assets.py          regenerates icons, splash and wallpapers (needs Pillow)
+scripts/image-smoke.sh          mounts a built image and runs the headless desktop test inside it
   secrets.env                   git-ignored, your secrets (local builds)
   build-info.env                git-ignored, generated per build
 .github/workflows/build-image.yml
@@ -342,12 +378,15 @@ scripts/make-assets.py          regenerates icons, splash and wallpapers (needs 
   filesystem copies as soon as it has its own (`GENESIS_PRUNE_WORK`, on by
   default). Set it to `0` only when you debug an earlier stage with
   `CONTINUE=1`.
-* **Desktop shows no blur:** you are in the labwc session, or blur is off.
-  Genesis Settings → Appearance shows both; Super+B toggles blur in Glass.
-* **The build logs "wayfire is not installable":** the Raspberry Pi archive
-  dropped it. The image still builds with the labwc session as default; to
-  keep Glass, mirror Debian trixie's `wayfire` 0.9.0 packages in your own apt
-  repository and add it in `stage-custom/06-apt-repos`.
+* **Desktop is blank or the panel is missing:** look at
+  `~/.cache/genesis/session.log` (the shell logs there and is restarted
+  automatically if it crashes), then run
+  `/usr/share/genesis-shell/preview.sh /tmp/p` over SSH to reproduce headless.
+  The stock Raspberry Pi desktop is still available from the login screen's
+  session menu.
+* **An app is missing from the dock or shows a generic icon:** its Wayland
+  `app_id` does not match a desktop file; add it to `APP_ID_ALIASES` in
+  `genesis_shell/services/apps.py`.
 * **`python` is 3.10 but a tool wants 3.13:** call `python3`, or run the tool
   with `uv run --python 3.13`.
 
