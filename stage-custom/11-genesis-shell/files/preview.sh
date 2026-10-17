@@ -48,6 +48,9 @@ ctl() { genesis-shell-ctl "$@"; }
 shot() {
 	sleep "${2:-1.2}"
 	if ctl shot "$OUT/$1"; then echo "preview: $1"; else echo "preview: screenshot $1 FAILED"; fi
+	ctl state 2> /dev/null | python3 -c 'import json, sys
+s = json.load(sys.stdin)
+print("preview: state overlays=%s panels=%s" % (json.dumps(s.get("overlays")), json.dumps(s.get("panels"))))' 2> /dev/null || true
 }
 
 wlr-randr --output HEADLESS-1 --custom-mode 1920x1080 > /dev/null 2>&1 || true

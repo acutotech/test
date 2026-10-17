@@ -58,7 +58,10 @@ def main():
                 continue
         except GLib.Error:
             pass
-        info = Gio.DesktopAppInfo.new_from_keyfile(keyfile)
+        try:
+            info = Gio.DesktopAppInfo.new_from_keyfile(keyfile)
+        except (TypeError, GLib.Error):  # PyGObject raises for a NULL constructor result
+            info = None
         if info is None:  # TryExec missing, invalid Exec
             continue
         if not info.get_show_in(DESKTOP):

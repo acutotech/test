@@ -289,6 +289,11 @@ class Shell:
             "control_center": self.control_center.visible,
             "notification_center": self.notification_center.visible,
             "power": self.power.visible,
+            "overlays": {
+                "launcher": self.launcher.describe(), "control_center": self.control_center.describe(),
+                "notification_center": self.notification_center.describe(), "power": self.power.describe(),
+            },
+            "panels": [{"monitor": str(m.get_model()), "mapped": bool(p.window.get_mapped())} for m, p in self.panels.items()],
             "toplevels": [{"app_id": t.app_id, "title": t.title, "active": t.activated} for t in self.toplevels.windows()],
             "notifications": len(self.notifications.items),
             "services": {

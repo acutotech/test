@@ -232,13 +232,24 @@ def launch_app(app_info: Gio.AppInfo | None) -> bool:
         return False
 
 
-def launch_desktop_id(desktop_id: str) -> bool:
+def desktop_app_info(desktop_id: str) -> Gio.DesktopAppInfo | None:
+    """Gio.DesktopAppInfo for an id, or None. PyGObject raises TypeError
+    ('constructor returned NULL') for a missing file instead of returning None."""
+    if not desktop_id:
+        return None
     if not desktop_id.endswith(".desktop"):
         desktop_id += ".desktop"
-    info = Gio.DesktopAppInfo.new(desktop_id)
+    try:
+        return Gio.DesktopAppInfo.new(desktop_id)
+    except (TypeError, GLib.Error):
+        return None
+
+
+def launch_desktop_id(desktop_id: str) -> bool:
+    info = desktop_app_info(desktop_id)
     if info is None:
         # fall back to running the bare command
-        return spawn([desktop_id[: -len(".desktop")]])
+        return spawn([desktop_id.removesuffix(".desktop")])
     return launch_app(info)
 
 

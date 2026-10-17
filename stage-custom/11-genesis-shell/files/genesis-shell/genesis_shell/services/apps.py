@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from gi.repository import Gio, GLib
 
 from . import Service
+from ..util import desktop_app_info
 
 log = logging.getLogger("genesis.apps")
 
@@ -164,7 +165,7 @@ class AppIndex(Service):
             if e.id == desktop_id:
                 return e
         # entries hidden from menus can still be pinned (NoDisplay=true launchers)
-        info = Gio.DesktopAppInfo.new(desktop_id)
+        info = desktop_app_info(desktop_id)
         if info is not None:
             return AppEntry(
                 id=desktop_id, name=info.get_name() or desktop_id, generic=info.get_generic_name() or "",

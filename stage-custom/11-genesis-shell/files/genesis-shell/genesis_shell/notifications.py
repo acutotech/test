@@ -9,7 +9,7 @@ import time
 from gi.repository import GdkPixbuf, Gio, GLib, Gtk, GtkLayerShell, Pango
 
 from .services import Service
-from .util import add_class, flat_button, gicon_image, icon_image, label, launch_app, make_layer_window
+from .util import add_class, desktop_app_info, flat_button, gicon_image, icon_image, label, launch_app, make_layer_window
 from .widgets import Glass, OverlayWindow
 
 log = logging.getLogger("genesis.notifications")
@@ -111,7 +111,7 @@ class Notification:
             if candidate:
                 return icon_image(candidate, size)
         if self.desktop_entry:
-            info = Gio.DesktopAppInfo.new(self.desktop_entry + ("" if self.desktop_entry.endswith(".desktop") else ".desktop"))
+            info = desktop_app_info(self.desktop_entry)
             if info is not None and info.get_icon() is not None:
                 return gicon_image(info.get_icon(), size)
         return icon_image("dialog-information-symbolic", size)
@@ -467,7 +467,7 @@ class NotificationList(Gtk.Box):
         if any(k == "default" for k, _ in n.actions):
             self.shell.notifications.invoke(n, "default")
             return True
-        info = Gio.DesktopAppInfo.new(n.desktop_entry + ("" if n.desktop_entry.endswith(".desktop") else ".desktop"))
+        info = desktop_app_info(n.desktop_entry)
         if info is not None:
             launch_app(info)
             self.shell.notification_center.hide()

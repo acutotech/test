@@ -6,7 +6,7 @@ import logging
 import os
 from typing import Callable
 
-from gi.repository import Gdk, GdkPixbuf, Gtk, GtkLayerShell
+from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, GtkLayerShell
 
 from .util import ALL_EDGES, add_class, flat_button, icon_image, label, make_layer_window, primary_monitor, rounded_rect, set_class
 
@@ -72,6 +72,7 @@ class OverlayWindow:
 
     def __init__(self, shell, namespace: str) -> None:
         self.shell = shell
+        self.namespace = namespace
         self.monitor: Gdk.Monitor | None = None
         self.visible = False
         self.window = make_layer_window(namespace=namespace, layer=self.layer, anchors=ALL_EDGES, exclusive=False, keyboard=self.keyboard)
@@ -155,8 +156,22 @@ class OverlayWindow:
             GtkLayerShell.set_monitor(self.window, self.monitor)
         self.visible = True
         self.window.show_all()
-        self.on_shown()
+        try:
+            self.on_shown()
+        except Exception:  # noqa: BLE001
+            log.exception("%s on_shown failed", self.namespace)
         self.shell.on_overlay_changed()
+        log.debug("%s shown (realized=%s mapped=%s)", self.namespace, self.window.get_realized(), self.window.get_mapped())
+        GLib.timeout_add(600, self._log_state)
+
+    def _log_state(self) -> bool:
+        alloc = self.window.get_allocation()
+        log.debug("%s after 600ms: visible=%s mapped=%s size=%dx%d", self.namespace, self.window.get_visible(), self.window.get_mapped(), alloc.width, alloc.height)
+        return False
+
+    def describe(self) -> dict:
+        alloc = self.window.get_allocation()
+        return {"visible": self.visible, "mapped": bool(self.window.get_mapped()), "realized": bool(self.window.get_realized()), "size": [alloc.width, alloc.height]}
 
     def hide(self) -> None:
         if not self.visible:
