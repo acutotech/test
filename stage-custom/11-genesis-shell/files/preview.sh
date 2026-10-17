@@ -29,6 +29,9 @@ if [ -z "${GENESIS_PREVIEW_INNER:-}" ]; then
 	status=$?
 	if [ -f "$OUT/result" ]; then
 		status=$(cat "$OUT/result")
+	else
+		echo "preview: FAIL the session client never reported a result (compositor exit status $status)"
+		status=1
 	fi
 	echo "preview: finished with status $status"
 	echo "===== compositor.log (labwc + session client, without the picture) ====="
@@ -200,4 +203,6 @@ PY
 status=$?
 echo "$status" > "$OUT/result"
 ctl quit > /dev/null 2>&1 || true
+# labwc -S ends the compositor when this script exits; be explicit in case it does not
+(sleep 2 && labwc -e > /dev/null 2>&1) &
 exit "$status"

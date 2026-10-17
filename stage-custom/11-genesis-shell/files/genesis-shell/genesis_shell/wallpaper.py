@@ -70,6 +70,7 @@ class WallpaperManager:
         self._scaled: dict[tuple, GdkPixbuf.Pixbuf] = {}
         self._blur: dict[tuple, cairo.ImageSurface] = {}
         self._pending_blur: set[tuple] = set()
+        self._failed_blur: set[tuple] = set()
         self._current = self.path()
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
         for mon in monitors():
@@ -139,6 +140,7 @@ class WallpaperManager:
         self._original = None
         self._scaled.clear()
         self._blur.clear()
+        self._failed_blur.clear()
         for win in self.windows.values():
             win.redraw()
         for mon in list(self.windows):
@@ -237,7 +239,7 @@ class WallpaperManager:
 
     def ensure_blur_async(self, monitor: Gdk.Monitor) -> None:
         key = self._blur_key(monitor)
-        if key is None or key in self._blur or key in self._pending_blur:
+        if key is None or key in self._blur or key in self._pending_blur or key in self._failed_blur:
             return
         file = self._blur_file(key)
         if file.is_file():
@@ -249,7 +251,8 @@ class WallpaperManager:
             try:
                 self._generate_blur(key, file, pixbuf)
             except Exception:  # noqa: BLE001
-                log.exception("blur generation failed")
+                log.exception("blur generation failed; surfaces stay plain for this wallpaper")
+                self._failed_blur.add(key)
             GLib.idle_add(self._blur_ready, key)
 
         threading.Thread(target=worker, name="wallpaper-blur", daemon=True).start()

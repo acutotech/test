@@ -35,6 +35,8 @@ trap cleanup EXIT
 echo "image-smoke: unpacking $(basename "${IMAGE}")"
 case "${IMAGE}" in
 	*.xz) xz -dkc "${IMAGE}" > "${WORK}/image.img" ;;
+	*.gz) gzip -dc "${IMAGE}" > "${WORK}/image.img" ;;
+	*.zst) zstd -dc "${IMAGE}" > "${WORK}/image.img" ;;
 	*.zip) unzip -p "${IMAGE}" > "${WORK}/image.img" ;;
 	*.img) cp --reflink=auto "${IMAGE}" "${WORK}/image.img" ;;
 	*) echo "image-smoke: unsupported image format: ${IMAGE}" >&2; exit 65 ;;
@@ -51,6 +53,12 @@ for d in dev dev/pts proc sys; do
 	mount --bind "/$d" "${ROOT}/$d"
 	MOUNTED+=("${ROOT}/$d")
 done
+# a bind of /dev does not carry the host's /dev/shm mount; wlroots and grim need shared memory
+mkdir -p "${ROOT}/dev/shm" "${ROOT}/run"
+mount -t tmpfs -o mode=1777 tmpfs "${ROOT}/dev/shm"
+MOUNTED+=("${ROOT}/dev/shm")
+mount -t tmpfs -o mode=755 tmpfs "${ROOT}/run"
+MOUNTED+=("${ROOT}/run")
 mount -t tmpfs -o mode=1777 tmpfs "${ROOT}/tmp"
 MOUNTED+=("${ROOT}/tmp")
 

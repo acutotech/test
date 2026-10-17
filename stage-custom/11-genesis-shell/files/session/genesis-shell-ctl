@@ -78,6 +78,6 @@ print(result.unpack()[0])
 PYEOF
 		;;
 	quit) call Quit > /dev/null ;;
-	help | -h | --help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//' ;;
+	help | -h | --help) awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "$0" ;;
 	*) echo "genesis-shell-ctl: unknown command '$cmd' (try --help)" >&2; exit 64 ;;
 esac

@@ -36,7 +36,13 @@ if command -v raspi-config > /dev/null 2>&1 && raspi-config nonint is_pi 2> /dev
 fi
 
 CONFIG_DIR=/etc/xdg/genesis/labwc
-if [ -f "$HOME/.config/genesis/labwc/rc.xml" ]; then
+if [ -d "$HOME/.config/genesis/labwc" ]; then
+	# labwc reads one config dir: complete a user copy with the system files it lacks
+	for f in rc.xml menu.xml autostart environment; do
+		if [ ! -e "$HOME/.config/genesis/labwc/$f" ] && [ -e "/etc/xdg/genesis/labwc/$f" ]; then
+			cp "/etc/xdg/genesis/labwc/$f" "$HOME/.config/genesis/labwc/$f"
+		fi
+	done
 	CONFIG_DIR="$HOME/.config/genesis/labwc"
 fi
 
