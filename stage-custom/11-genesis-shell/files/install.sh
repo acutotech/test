@@ -56,18 +56,31 @@ postinstall() {
 	local xml=/usr/share/wayland/wayland.xml
 	local proto=/usr/share/genesis-shell/protocols/wlr-foreign-toplevel-management-unstable-v1.xml
 	local out=/usr/lib/genesis-shell/genesis_shell/protocols
-	if [ -f "$xml" ] && python3 -c 'import pywayland.scanner' 2> /dev/null; then
+	local scanner=""
+	if [ ! -f "$xml" ]; then
+		echo "WARNING: $xml missing (install libwayland-dev); the window list will be disabled" >&2
+	else
+		if command -v pywayland-scanner > /dev/null 2>&1; then
+			scanner="pywayland-scanner"
+		elif python3 -c 'import pywayland.scanner' 2> /tmp/genesis-scanner.err; then
+			scanner="python3 -m pywayland.scanner"
+		else
+			echo "WARNING: pywayland scanner cannot be imported; the window list will be disabled:" >&2
+			cat /tmp/genesis-scanner.err >&2 || true
+		fi
+		rm -f /tmp/genesis-scanner.err
+	fi
+	if [ -n "$scanner" ]; then
 		rm -rf "$out"
 		mkdir -p "$out"
-		if python3 -m pywayland.scanner -i "$xml" "$proto" -o "$out"; then
+		# shellcheck disable=SC2086  # $scanner may be two words
+		if $scanner -i "$xml" "$proto" -o "$out"; then
 			: > "$out/__init__.py"
-			log "generated Wayland protocol bindings in $out"
+			log "generated Wayland protocol bindings in $out: $(find "$out" -mindepth 1 -maxdepth 1 -type d -printf '%f ')"
 		else
-			echo "WARNING: pywayland scanner failed; the window list will be disabled" >&2
+			echo "WARNING: $scanner failed; the window list will be disabled" >&2
 			rm -rf "$out"
 		fi
-	else
-		echo "WARNING: wayland.xml or pywayland missing; the window list will be disabled" >&2
 	fi
 	python3 -m compileall -q /usr/lib/genesis-shell || true
 	if command -v glib-compile-schemas > /dev/null 2>&1 && [ -d /usr/share/glib-2.0/schemas ]; then
