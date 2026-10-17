@@ -1,0 +1,6 @@
+[org.gnome.desktop.interface]
+gtk-theme='GenesisGlass'
+icon-theme='Genesis'
+font-name='Inter 11'
+monospace-font-name='JetBrains Mono 11'
+color-scheme='prefer-dark'

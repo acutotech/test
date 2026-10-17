@@ -6,41 +6,50 @@
 #   * local builds   -> scripts/build-local.sh
 #   * GitHub Actions -> .github/workflows/build-image.yml ("Read build config")
 #
+# The workflow forwards exactly the variables defined in this file to
+# pi-gen-action and fails on any other assignment, so a new setting cannot
+# silently apply to local builds only.
+#
 # Secrets never belong here. Passwords, SSH keys and Wi-Fi credentials go in
 # stage-custom/secrets.env (git-ignored) or GitHub Actions secrets.
 # Non-secret image tweaks (packages, interfaces, services) live in
 # stage-custom/custom.conf and stage-custom/00-packages/00-packages.
 
-# Root name of the image. Output file: image_<date>-<IMG_NAME>-lite.img.xz
-IMG_NAME="custom-raspios"
+# Root name of the image. Output file: image_<date>-<IMG_NAME>-desktop.img.xz
+IMG_NAME="genesis-os"
 
 # Written to /etc/rpi-issue and /boot/firmware/issue.txt inside the image.
-PI_GEN_RELEASE="Custom Raspberry Pi OS"
+PI_GEN_RELEASE="Genesis OS"
+
+# Upstream pi-gen stages built before stage-custom. "stage0 stage1 stage2" is
+# Raspberry Pi OS Lite; "stage0 stage1 stage2 stage3 stage4" is the full
+# desktop (IMG_SUFFIX in stage-custom/EXPORT_IMAGE names the result).
+BASE_STAGES="stage0 stage1 stage2 stage3 stage4"
 
 # Debian release. pi-gen's arm64 branch targets trixie; another release needs
 # a matching pi-gen branch (PI_GEN_REF in scripts/build-local.sh, pi-gen-ref
 # input of the workflow).
 RELEASE="trixie"
 
-# System identity.
-TARGET_HOSTNAME="custompi"
-FIRST_USER_NAME="pi"
+# System identity. The hostname is reachable as nodobox.local through mDNS.
+TARGET_HOSTNAME="nodobox"
+FIRST_USER_NAME="nodoai"
 
 # Locale, keyboard, time zone and Wi-Fi regulatory domain.
 # WPA_COUNTRY must be set for Wi-Fi to work at all: without it pi-gen ships
 # the image with the radio soft-blocked until a country is chosen.
-LOCALE_DEFAULT="en_GB.UTF-8"
-KEYBOARD_KEYMAP="gb"
-KEYBOARD_LAYOUT="English (UK)"
-TIMEZONE_DEFAULT="Europe/London"
-WPA_COUNTRY="GB"
+LOCALE_DEFAULT="en_US.UTF-8"
+KEYBOARD_KEYMAP="us"
+KEYBOARD_LAYOUT="English (US)"
+TIMEZONE_DEFAULT="Asia/Kolkata"
+WPA_COUNTRY="IN"
 
-# SSH server enabled (headless image). When an SSH public key is supplied
-# (secret SSH_AUTHORIZED_KEYS, or PUBKEY_SSH_FIRST_USER in secrets.env) and
-# PUBKEY_ONLY_SSH is 1, password logins over SSH are switched off.
+# SSH server enabled. PUBKEY_ONLY_SSH="0" keeps password logins over SSH,
+# which a box with a known default password needs; set it to "1" once every
+# device gets an SSH key (secret SSH_AUTHORIZED_KEYS).
 ENABLE_SSH="1"
-PUBKEY_ONLY_SSH="1"
-PASSWORDLESS_SUDO="0"
+PUBKEY_ONLY_SSH="0"
+PASSWORDLESS_SUDO="0"   # applied by pi-gen locally and by stage-custom in CI
 
 # cloud-init (NoCloud datasource: user-data and network-config on the boot
 # partition are applied on first boot). Needed for the baked-in Wi-Fi setup.

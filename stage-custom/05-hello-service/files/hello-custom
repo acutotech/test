@@ -7,4 +7,4 @@ if [ -f /etc/custom-image-release ]; then
 	. /etc/custom-image-release
 fi
 
-logger -t hello-custom "Custom Raspberry Pi OS ${IMAGE_NAME:-?} built ${IMAGE_DATE:-?} from ${SOURCE_COMMIT:-?} is up on $(hostname)"
+logger -t hello-custom "Genesis OS ${IMAGE_NAME:-?} built ${IMAGE_DATE:-?} from ${SOURCE_COMMIT:-?} is up on $(hostname)"

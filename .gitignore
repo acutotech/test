@@ -13,3 +13,5 @@
 *.img.xz
 *.img.gz
 *.zip
+__pycache__/
+*.pyc

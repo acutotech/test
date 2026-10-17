@@ -1,0 +1,9 @@
+# Desktop extras on top of Raspberry Pi OS Desktop (stage3 + stage4).
+# Settings app runtime
+python3-gi gir1.2-gtk-3.0 python3-gi-cairo
+# Sound mixer, screenshots, VNC server, xdg helpers
+pavucontrol grim slurp wayvnc xdg-utils desktop-file-utils
+# Plymouth splash (rpd-plym-splash brings plymouth-themes)
+plymouth rpd-plym-splash
+# Terminal and file manager are part of the desktop; keep them explicit
+lxterminal pcmanfm

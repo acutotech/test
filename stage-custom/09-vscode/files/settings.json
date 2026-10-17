@@ -1,0 +1,17 @@
+{
+    "python.defaultInterpreterPath": "/usr/local/bin/python",
+    "python.terminal.activateEnvironment": true,
+    "workbench.colorTheme": "Default Dark Modern",
+    "workbench.startupEditor": "none",
+    "window.titleBarStyle": "custom",
+    "window.menuBarVisibility": "compact",
+    "editor.fontFamily": "'JetBrains Mono', 'DejaVu Sans Mono', monospace",
+    "editor.fontSize": 13,
+    "editor.fontLigatures": true,
+    "editor.minimap.enabled": false,
+    "editor.smoothScrolling": true,
+    "terminal.integrated.fontFamily": "'JetBrains Mono', monospace",
+    "telemetry.telemetryLevel": "off",
+    "update.mode": "none",
+    "extensions.autoCheckUpdates": false
+}
