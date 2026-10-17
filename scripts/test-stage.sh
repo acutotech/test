@@ -55,6 +55,13 @@ on_chroot() {
 	bash -n <(printf '%s\n' "${script}")
 }
 export -f log on_chroot
+# pi-gen runs as root and the stage chowns the first user's files to uid 1000;
+# the dry-run may run unprivileged (GitHub's runner user), where that is not
+# permitted and not what is under test.
+if [ "$(id -u)" != "0" ]; then
+	chown() { :; }
+	export -f chown
+fi
 
 make_rootfs() {
 	rm -rf "${ROOTFS_DIR}"
