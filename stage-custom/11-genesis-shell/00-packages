@@ -8,6 +8,7 @@ gir1.2-nm-1.0
 gir1.2-upowerglib-1.0
 python3-pulsectl
 python3-pywayland
+python3-cffi-backend
 python3-pil
 libwayland-dev
 libglib2.0-bin
