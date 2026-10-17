@@ -21,6 +21,7 @@ lint: lint-shell lint-yaml lint-actions ## Run all linters
 lint-shell: ## shellcheck every shell file, byte-compile every Python file
 	shellcheck -s bash -x -P SCRIPTDIR $(SH_FILES)
 	python3 -m py_compile $(PY_FILES) && find . -path ./pi-gen -prune -o -name __pycache__ -type d -print0 | xargs -0r rm -rf
+	python3 scripts/check-shell-imports.py
 
 lint-yaml: ## yamllint workflow and config files
 	yamllint -s $(YAML_FILES)
