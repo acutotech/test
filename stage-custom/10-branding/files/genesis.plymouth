@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Genesis OS
+Description=Genesis OS boot splash
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/genesis
+ScriptFile=/usr/share/plymouth/themes/genesis/genesis.script

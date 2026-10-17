@@ -1,0 +1,119 @@
+#!/bin/bash
+# Privileged helper for Genesis Settings. Runs as root via sudo/pkexec.
+#
+#   genesis-helper get <item>                 (works unprivileged)
+#   genesis-helper set <item> 0|1             items: i2c spi serial_hw serial_cons onewire ssh vnc camera blanking splash sudo_nopass autologin
+#   genesis-helper session wayfire|labwc      default desktop session for lightdm
+#   genesis-helper greeter-wallpaper <file>   login screen wallpaper
+#   genesis-helper hostname <name>
+#   genesis-helper timezone <Area/City>
+#   genesis-helper locale <xx_YY.UTF-8>
+#   genesis-helper wifi-country <CC>
+set -eu
+
+RC=/usr/bin/raspi-config
+# raspi-config applies per-user settings to $USER (derived from SUDO_USER).
+export SUDO_USER="${SUDO_USER:-${PKEXEC_UID:+$(getent passwd "${PKEXEC_UID}" | cut -d: -f1)}}"
+if [ -z "${SUDO_USER}" ]; then
+	SUDO_USER="$(getent passwd 1000 | cut -d: -f1)"
+	export SUDO_USER
+fi
+
+die() { echo "genesis-helper: $*" >&2; exit 1; }
+need_root() { [ "$(id -u)" = 0 ] || die "this operation needs root"; }
+
+unit_enabled() { systemctl -q is-enabled "$1" 2> /dev/null && echo 0 || echo 1; }
+
+get_item() {
+	case "$1" in
+		i2c) "$RC" nonint get_i2c ;;
+		spi) "$RC" nonint get_spi ;;
+		serial_hw) "$RC" nonint get_serial_hw ;;
+		serial_cons) "$RC" nonint get_serial_cons ;;
+		onewire) "$RC" nonint get_onewire ;;
+		camera) "$RC" nonint get_camera ;;
+		ssh) "$RC" nonint get_ssh ;;
+		vnc) unit_enabled wayvnc.service ;;
+		blanking) "$RC" nonint get_blanking ;;
+		splash) "$RC" nonint get_boot_splash ;;
+		sudo_nopass) "$RC" nonint get_sudo_pass ;;
+		autologin) "$RC" nonint get_autologin ;;
+		session) cat /etc/genesis/session 2> /dev/null || echo labwc ;;
+		*) die "unknown item $1" ;;
+	esac
+}
+
+set_item() {
+	need_root
+	local item="$1" val="$2"
+	[ "$val" = 0 ] || [ "$val" = 1 ] || die "value must be 0 (on) or 1 (off)"
+	case "$item" in
+		i2c) "$RC" nonint do_i2c "$val" ;;
+		spi) "$RC" nonint do_spi "$val" ;;
+		serial_hw) "$RC" nonint do_serial_hw "$val" ;;
+		serial_cons) "$RC" nonint do_serial_cons "$val" ;;
+		onewire) "$RC" nonint do_onewire "$val" ;;
+		camera) "$RC" nonint do_camera "$val" ;;
+		ssh) "$RC" nonint do_ssh "$val" ;;
+		vnc)
+			# raspi-config's VNC toggle only recognises labwc; drive wayvnc directly so it
+			# works under the Genesis Glass (Wayfire) session as well.
+			if [ "$val" = 0 ]; then
+				systemctl enable wayvnc.service || true
+				systemctl start wayvnc.service || true
+			else
+				systemctl disable wayvnc.service || true
+				systemctl stop wayvnc.service || true
+			fi ;;
+		blanking) "$RC" nonint do_blanking "$val" ;;
+		splash) "$RC" nonint do_boot_splash "$val" ;;
+		sudo_nopass) "$RC" nonint do_sudo_pass "$val" ;;
+		autologin) if [ "$val" = 0 ]; then "$RC" nonint do_boot_behaviour B4; else "$RC" nonint do_boot_behaviour B3; fi ;;
+		*) die "unknown item $item" ;;
+	esac
+}
+
+set_session() {
+	need_root
+	local name="$1" session
+	case "$name" in
+		wayfire) session=genesis-glass; [ -f /usr/share/wayland-sessions/genesis-glass.desktop ] || die "the Genesis Glass session is not installed" ;;
+		labwc) session=rpd-labwc; [ -f /usr/share/wayland-sessions/rpd-labwc.desktop ] || session=LXDE-pi-labwc ;;
+		*) die "session must be wayfire or labwc" ;;
+	esac
+	local conf=/etc/lightdm/lightdm.conf
+	[ -f "$conf" ] || die "$conf not found"
+	sed -i -e "s/^#\?user-session=.*/user-session=${session}/" -e "s/^#\?autologin-session=.*/autologin-session=${session}/" "$conf"
+	grep -q '^user-session=' "$conf" || printf 'user-session=%s\n' "$session" >> "$conf"
+	grep -q '^autologin-session=' "$conf" || printf 'autologin-session=%s\n' "$session" >> "$conf"
+	local acct="/var/lib/AccountsService/users/${SUDO_USER}"
+	mkdir -p /var/lib/AccountsService/users
+	if [ -f "$acct" ] && grep -q '^XSession=' "$acct"; then
+		sed -i -e "s/^XSession=.*/XSession=${session}/" -e "s/^Session=.*/Session=${session}/" "$acct"
+	else
+		printf '[User]\nSession=%s\nXSession=%s\n' "$session" "$session" >> "$acct"
+	fi
+	mkdir -p /etc/genesis
+	printf '%s\n' "$name" > /etc/genesis/session
+}
+
+set_greeter_wallpaper() {
+	need_root
+	[ -f "$1" ] || die "no such file: $1"
+	local conf=/etc/lightdm/pi-greeter.conf
+	[ -f "$conf" ] || die "$conf not found"
+	sed -i -e "s#^wallpaper=.*#wallpaper=$1#" "$conf"
+	grep -q '^wallpaper=' "$conf" || printf 'wallpaper=%s\n' "$1" >> "$conf"
+}
+
+case "${1:-}" in
+	get) get_item "${2:?item}" ;;
+	set) set_item "${2:?item}" "${3:?value}" ;;
+	session) set_session "${2:?name}" ;;
+	greeter-wallpaper) set_greeter_wallpaper "${2:?file}" ;;
+	hostname) need_root; "$RC" nonint do_hostname "${2:?name}" ;;
+	timezone) need_root; "$RC" nonint do_change_timezone "${2:?zone}" ;;
+	locale) need_root; "$RC" nonint do_change_locale "${2:?locale}" ;;
+	wifi-country) need_root; "$RC" nonint do_wifi_country "${2:?country}" ;;
+	*) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+esac

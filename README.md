@@ -1,38 +1,52 @@
-# Custom Raspberry Pi OS
+# Genesis OS
 
-Build your own 64-bit **Raspberry Pi OS Lite** (Debian trixie) image with your
-packages, settings and software baked in. The build uses
-[pi-gen](https://github.com/RPi-Distro/pi-gen), the tool that produces the
-official images, and runs either in **GitHub Actions** (nothing to install) or
-**locally with Docker**.
+A custom Raspberry Pi OS image for the **NodoAI box**: 64-bit Raspberry Pi OS
+Desktop (Debian trixie) with a dark "liquid glass" look, your logo on the
+boot splash, login screen and app menu, Visual Studio Code, Python 3.10 and
+3.13, Chromium, a Genesis Settings app, and the hardware interfaces switched
+on. Built with [pi-gen](https://github.com/RPi-Distro/pi-gen), the tool that
+produces the official images, in **GitHub Actions** or **locally with
+Docker**.
 
-Output: `image_<date>-custom-raspios-lite.img.xz`, flashable with Raspberry Pi
-Imager, plus a package list (`.info`), the build log and, from CI, `SHA256SUMS`.
+Output: `image_<date>-genesis-os-desktop.img.xz`, flashable with Raspberry
+Pi Imager, plus a package list (`.info`), the build log and, from CI,
+`SHA256SUMS`.
 
-## How it is put together
+## What the image contains
 
-| Piece | Role |
-| --- | --- |
-| pi-gen `stage0`-`stage2` (upstream, `arm64` branch) | Raspberry Pi OS Lite, unchanged |
-| [`stage-custom/`](stage-custom) | your changes, run after stage2; the only stage that exports an image |
-| [`config`](config) | pi-gen settings shared by the local and the CI build |
-| [`.github/workflows/build-image.yml`](.github/workflows/build-image.yml) | lint + dry-run on every push and PR; full image build on `main`, tags and manual runs |
-| [`scripts/build-local.sh`](scripts/build-local.sh) | same build on your machine (Docker or native) |
-| [`scripts/test-stage.sh`](scripts/test-stage.sh) | runs the custom stage against a fake root filesystem in seconds |
-
-Defaults, all changeable:
-
-| Setting | Default | Where |
+| Area | Default | Where to change it |
 | --- | --- | --- |
-| Base | Raspberry Pi OS Lite, trixie, arm64 (Pi 3, 4, 5, 400, 500, Zero 2 W, CM4, CM5) | `config`, workflow `pi-gen-ref` |
-| Hostname | `custompi` (reachable as `custompi.local`) | `config` |
-| User | `pi`, password from secret `FIRST_USER_PASS` (otherwise first-boot wizard) | `config`, secrets |
-| SSH | enabled; key-only when `SSH_AUTHORIZED_KEYS` is set | `config`, secrets |
-| Locale / keyboard / time zone / Wi-Fi country | `en_GB.UTF-8` / `gb` / `Europe/London` / `GB` | `config` |
-| Wi-Fi | none, unless `WIFI_SSID` + `WIFI_PASSWORD` are set | secrets, `stage-custom/custom.conf` |
-| Extra packages | git, vim, tmux, jq, tree, unattended-upgrades | `stage-custom/00-packages/00-packages` |
-| Behaviour | persistent journal (64 MB cap), automatic security updates | `stage-custom/custom.conf` |
-| Example service | `hello-custom.service` logs the image identity at boot | `stage-custom/05-hello-service` (delete it) |
+| Base | Raspberry Pi OS Desktop, trixie, arm64 (Pi 5 first; also Pi 4, 400, 500, CM4/CM5, Zero 2 W, Pi 3) | `BASE_STAGES` in `config` |
+| Hostname | `nodobox`, reachable as `nodobox.local` | `config` |
+| User | `nodoai`; password from secret `FIRST_USER_PASS` | `config`, secrets |
+| Wi-Fi | network from secrets `WIFI_SSID` / `WIFI_PASSWORD`, country `IN` | secrets, `config` |
+| Locale, keyboard, time zone | `en_US.UTF-8`, `us`, `Asia/Kolkata` | `config` |
+| Desktop session | **Genesis Glass**: Wayfire 0.9 with background blur, animations, shadows. Fallback: Raspberry Pi's labwc session, selectable at login or in Genesis Settings | `GENESIS_SESSION` in `stage-custom/custom.conf` |
+| Look | GTK theme *GenesisGlass* (translucent panel, frosted menus, rounded corners, steel-blue accent), Inter + JetBrains Mono fonts, Genesis icon theme (logo as the menu icon), 5 wallpapers | `stage-custom/11-glass-theme`, `stage-custom/10-branding` |
+| Boot | Plymouth splash with the Genesis logo, boot straight into the desktop as `nodoai` | `ENABLE_BOOT_SPLASH`, `DESKTOP_AUTOLOGIN` |
+| Apps | Visual Studio Code (Microsoft repository) with the Python extensions, Chromium as default browser, the full Raspberry Pi desktop application set | `INSTALL_VSCODE`, `VSCODE_EXTENSIONS`, `DEFAULT_BROWSER` |
+| Python | `python` = CPython 3.10.22 under `/opt/python` (user default, VS Code interpreter); `python3` = the OS's 3.13; `uv` installed for more versions | `PYTHON_PRIMARY` |
+| Interfaces | I2C, SPI, serial port (UART on GPIO 14/15, Pi 5 `uart0`), SSH, VNC (wayvnc) on; serial console and 1-Wire off | `ENABLE_*` in `custom.conf` |
+| Settings | **Genesis Settings** (interfaces, system, appearance incl. wallpaper and session, connectivity, display and sound, software, about) plus Raspberry Pi Configuration and Appearance Settings | `stage-custom/12-genesis-settings` |
+| Panel | Raspberry Pi panel at the top: menu, launchers (Chromium, VS Code, Files, Terminal, Genesis Settings), window list, tray, power, updater, Bluetooth, Wi-Fi, volume, clock | `GENESIS_PANEL_*` |
+| Behaviour | persistent journal, automatic security updates, cloud-init seed files on the boot partition | `custom.conf` |
+
+Why these choices, in two sentences each:
+
+* **Wayfire, not a from-scratch desktop.** Real blur needs a compositor that
+  renders it; Raspberry Pi's labwc refuses blur by design, and a new desktop
+  environment is years of work. Wayfire is in the Raspberry Pi trixie archive,
+  runs the stock Pi panel, desktop and VNC server unchanged, and ran Raspberry
+  Pi OS by default on Pi 4/5 in Bookworm, so performance on a Pi 5 is known.
+  Raspberry Pi no longer supports it officially, which is why the labwc session
+  stays installed and the build falls back to it if the package disappears.
+* **Python 3.10 as `python`, not as `python3`.** The OS, apt and raspi-config
+  run on the system 3.13; replacing it breaks them. 3.10.22 is the last 3.10
+  release and the series is end-of-life, so plan to move your code to 3.12 or
+  3.13 (`uv python install 3.12` is one command). The Raspberry Pi libraries
+  the OS ships (`gpiozero`, `rpi-lgpio`, `picamera2`) live in the system 3.13;
+  in 3.10 install what you need with `pip install gpiozero rpi-lgpio` or run
+  `python3`.
 
 ## Quick start (GitHub Actions)
 
@@ -41,20 +55,22 @@ Defaults, all changeable:
    against the plan's minutes. **In a public repository the built image is
    public as well** (artifact and release), so the workflow refuses to bake
    `FIRST_USER_PASS` or `WIFI_PASSWORD` into it unless you set the repository
-   variable `ALLOW_SECRETS_IN_PUBLIC_IMAGE` to `true`.
-2. Optional: add repository secrets under *Settings → Secrets and variables →
-   Actions*.
+   variable `ALLOW_SECRETS_IN_PUBLIC_IMAGE` to `true`. For a product image with
+   a known default password, make the repository private.
+2. Add the repository secrets under *Settings → Secrets and variables →
+   Actions*:
 
-   | Secret | Effect |
+   | Secret | Value for the NodoAI box |
    | --- | --- |
-   | `FIRST_USER_PASS` | password for the first user; the account is usable right after flashing and the first-boot wizard is skipped. Must not contain `"`, `$`, `` ` `` or `\` (pi-gen limitation; the workflow checks) |
-   | `SSH_AUTHORIZED_KEYS` | contents of `~/.ssh/authorized_keys` for the first user; with `PUBKEY_ONLY_SSH="1"` (default) SSH password logins are disabled |
-   | `WIFI_SSID`, `WIFI_PASSWORD` | Wi-Fi network joined on first boot (cloud-init → netplan → NetworkManager) |
+   | `FIRST_USER_PASS` | `root@nodoai`. Must not contain `"`, `$`, `` ` `` or `\` (pi-gen limitation; the workflow checks) |
+   | `WIFI_SSID` | `NodoAI` |
+   | `WIFI_PASSWORD` | `nodoai@123` |
+   | `SSH_AUTHORIZED_KEYS` | optional: your public key(s) |
 
 3. *Actions → Build image → Run workflow*, or push to `main`. Expect roughly
-   30-60 minutes for a Lite build on the arm64 runner; `ubuntu-latest` (x86-64
-   with QEMU) takes several times longer.
-4. Download the `custom-raspios` artifact and unzip it.
+   40-70 minutes for the desktop build on the arm64 runner; `ubuntu-latest`
+   (x86-64 with QEMU) takes several times longer.
+4. Download the `genesis-os` artifact and unzip it.
 5. Flash `image_*.img.xz`: Raspberry Pi Imager (*Use custom*), or
    `xzcat image_*.img.xz | sudo dd of=/dev/sdX bs=4M status=progress conv=fsync`.
    If you let Imager apply its own *OS customisation*, it overwrites the
@@ -62,21 +78,49 @@ Defaults, all changeable:
 6. Tag a commit `v1.2.3` and push the tag: the workflow attaches the image to a
    GitHub release.
 
-## First boot: how you get in
+## First boot
+
+With the secrets above set, the box boots to the Genesis splash, logs
+`nodoai` into the Genesis Glass desktop, joins the `NodoAI` Wi-Fi, and
+answers on `nodobox.local` for SSH and VNC with the password `root@nodoai`.
+Without `FIRST_USER_PASS` the image behaves like the official one: the
+first-boot wizard asks for a username and password.
 
 | At build time you set | What happens on first boot |
 | --- | --- |
-| `FIRST_USER_PASS` (optionally `SSH_AUTHORIZED_KEYS`) | the user exists with that password, SSH is up: `ssh pi@custompi.local` or log in on the console. With a key and `PUBKEY_ONLY_SSH="1"`, SSH accepts keys only. |
-| only `SSH_AUTHORIZED_KEYS` | **not usable headless.** pi-gen creates the user with `adduser --disabled-login`, which on trixie sets the shell to `/usr/sbin/nologin` until a password is set, so SSH refuses the key login, and the console wizard is armed. Set `FIRST_USER_PASS` as well; the workflow prints a warning if you don't. |
-| nothing | identical to the official Lite image: the console asks for a username and password. Headless alternatives: Raspberry Pi Imager 2.0 *OS customisation*, or a `userconf.txt` on the boot partition containing `pi:<hash>` with the hash from `openssl passwd -6`. |
+| `FIRST_USER_PASS` (optionally `SSH_AUTHORIZED_KEYS`) | the user exists with that password, SSH and VNC are up: `ssh nodoai@nodobox.local`, any VNC viewer on `nodobox.local:5900`. |
+| only `SSH_AUTHORIZED_KEYS` | **not usable headless.** pi-gen creates the user with `adduser --disabled-login`, which on trixie sets the shell to `/usr/sbin/nologin` until a password is set, so SSH refuses the key login, and the first-boot wizard runs. Set `FIRST_USER_PASS` as well; the workflow prints a warning if you don't. |
+| nothing | identical to the official image: the wizard asks for a username and password. Headless alternatives: Raspberry Pi Imager 2.0 *OS customisation*, or a `userconf.txt` on the boot partition containing `nodoai:<hash>` with the hash from `openssl passwd -6`. |
 
-Wi-Fi joins automatically when the `WIFI_*` secrets were set; Ethernet uses
-DHCP in any case. `WPA_COUNTRY` in `config` must be set, or pi-gen ships the
-radio soft-blocked; set it to the country the device is used in so the right
+`WPA_COUNTRY` in `config` must be set, or pi-gen ships the radio
+soft-blocked; set it to the country the device is used in so the right
 channels are allowed.
 
 `cloud-init` runs on the first boot only. To re-run it after editing
 `user-data`, run `sudo cloud-init clean --logs` and reboot.
+
+## The desktop
+
+* **Genesis Glass** (default) is Wayfire with `~/.config/wayfire.ini` seeded
+  from `/etc/wayfire/genesis.ini`: kawase blur behind the panel, menus and
+  terminal, zoom animations, drop shadows, wobbly windows, rounded panel
+  controls. Super+B toggles blur live; Super+E shows all windows; Super+I
+  opens Genesis Settings; Ctrl+Alt+T opens a terminal; Print takes a
+  screenshot into `~/Pictures`. `wcm` (Wayfire Config Manager) edits every
+  option graphically.
+* **Raspberry Pi labwc** is the stock session with the same theme, rounded
+  titlebars and shadows but no blur. Switch in Genesis Settings → Appearance
+  → Desktop session, or pick it on the login screen. It is also what the
+  image falls back to if Wayfire ever leaves the Raspberry Pi archive.
+* **Genesis Settings** (menu, panel, Super+I) drives `raspi-config` for
+  interfaces, hostname, time zone, locale, boot options and Wi-Fi country,
+  controls wayvnc, switches wallpapers and sessions, and links to the
+  Raspberry Pi tools for screens, sound, networks and software. Privileged
+  changes prompt for the password through the Pi's askpass dialog, or run
+  silently if `PASSWORDLESS_SUDO="1"`.
+* One caveat: Raspberry Pi Configuration's own *VNC* switch only recognises
+  the labwc session. Under Genesis Glass use the VNC switch in Genesis
+  Settings; it manages the same wayvnc service.
 
 ## Customising the image
 
@@ -164,9 +208,10 @@ and the [cloud-init docs](https://cloudinit.readthedocs.io/).
 
 ### Changing the base
 
-* **Desktop instead of Lite:** set `BASE_STAGES="stage0 stage1 stage2 stage3
-  stage4"` in `config` and change `IMG_SUFFIX` in `stage-custom/EXPORT_IMAGE`
-  (for example to `-desktop`). Expect a 3-4 GB image and a much longer build.
+* **Lite instead of Desktop:** set `BASE_STAGES="stage0 stage1 stage2"` in
+  `config`, `IMG_SUFFIX="-lite"` in `stage-custom/EXPORT_IMAGE`, and
+  `INSTALL_VSCODE="0"`, `ENABLE_BOOT_SPLASH="0"` in `custom.conf`. The desktop
+  sub-stages notice the missing desktop and skip what does not apply.
 * **32-bit (Pi 1, Pi 2 v1.1, Zero, Zero W):** pi-gen builds armhf from its
   `master` branch. Set `pi-gen-ref` / `PI_GEN_REF` to `master`. 32-bit trixie
   images have had teething problems upstream; check pi-gen's issue tracker
@@ -230,8 +275,18 @@ stage-custom/
   02-cloud-init/                user-data template, Wi-Fi network-config
   04-release-info/              /etc/custom-image-release (what was built from what)
   05-hello-service/             example: ship a script + systemd unit
+  06-apt-repos/                 Microsoft repository for VS Code (key vendored)
+  07-desktop-packages/          settings-app runtime, wayvnc, plymouth, fonts
+  08-python/                    CPython 3.10 under /opt/python as "python", uv
+  09-vscode/                    VS Code, default settings, Python extensions
+  10-branding/                  icons, Genesis icon theme, wallpapers, Plymouth splash, login screen
+  11-glass-theme/               GenesisGlass GTK theme, panel, desktop, terminal, labwc, Wayfire session
+  12-genesis-settings/          Genesis Settings app and its privileged helper
+  13-system-defaults/           interfaces, VNC, browser, autologin, session, splash flags
   90-services/                  enable/disable systemd units (runs last)
   secrets.env.example           template for secrets.env
+branding/src/                   the logo and wallpaper the assets are generated from
+scripts/make-assets.py          regenerates icons, splash and wallpapers (needs Pillow)
   secrets.env                   git-ignored, your secrets (local builds)
   build-info.env                git-ignored, generated per build
 .github/workflows/build-image.yml
@@ -252,8 +307,9 @@ stage-custom/
   partition. This is how Raspberry Pi Imager stores them too. Anyone with the
   SD card can read them.
 * `FIRST_USER_PASS` is stored as a hash in `/etc/shadow` of the image. Every
-  device flashed from the image shares it; rotate it on the device or use SSH
-  keys with `PUBKEY_ONLY_SSH="1"`.
+  device flashed from the image shares it, and SSH plus VNC accept it, so
+  change it on each device (Genesis Settings → System) or ship SSH keys with
+  `PUBKEY_ONLY_SSH="1"`.
 * `root` has no password (pi-gen default). SSH host keys are generated on the
   device at first boot, not shared between devices.
 * Automatic security updates are on by default (`ENABLE_UNATTENDED_UPGRADES`).
@@ -282,6 +338,18 @@ stage-custom/
   the first user has no password, so its shell is `nologin`. Set
   `FIRST_USER_PASS` and rebuild, or finish the console wizard once.
 * **x86-64 runner is slow or fails in QEMU:** use `ubuntu-24.04-arm`.
+* **Runner runs out of disk:** the stage deletes the earlier stages' root
+  filesystem copies as soon as it has its own (`GENESIS_PRUNE_WORK`, on by
+  default). Set it to `0` only when you debug an earlier stage with
+  `CONTINUE=1`.
+* **Desktop shows no blur:** you are in the labwc session, or blur is off.
+  Genesis Settings → Appearance shows both; Super+B toggles blur in Glass.
+* **The build logs "wayfire is not installable":** the Raspberry Pi archive
+  dropped it. The image still builds with the labwc session as default; to
+  keep Glass, mirror Debian trixie's `wayfire` 0.9.0 packages in your own apt
+  repository and add it in `stage-custom/06-apt-repos`.
+* **`python` is 3.10 but a tool wants 3.13:** call `python3`, or run the tool
+  with `uv run --python 3.13`.
 
 ## Alternatives
 

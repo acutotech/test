@@ -26,8 +26,18 @@ fi
 if [ "${ENABLE_SPI}" = "1" ]; then
 	ensure_line "${CONFIG_TXT}" "dtparam=spi=on"
 fi
-if [ "${ENABLE_UART}" = "1" ]; then
+if [ "${ENABLE_SERIAL_PORT}" = "1" ]; then
+	# Pi 5 exposes the GPIO UART as uart0 (dtparam); earlier models use enable_uart.
+	# The [pi5] section is written as a block and closed with [all] again, so
+	# whatever follows applies to every model (ensure_line would skip a second
+	# [all] and leave the file in the [pi5] section).
 	ensure_line "${CONFIG_TXT}" "enable_uart=1"
+	if ! grep -qxF -- "dtparam=uart0=on" "${CONFIG_TXT}"; then
+		printf '[pi5]\ndtparam=uart0=on\n[all]\n' >> "${CONFIG_TXT}"
+	fi
+fi
+if [ "${ENABLE_ONEWIRE}" = "1" ]; then
+	ensure_line "${CONFIG_TXT}" "dtoverlay=w1-gpio"
 fi
 if [ -n "${CONFIG_TXT_EXTRA}" ]; then
 	while IFS= read -r line; do

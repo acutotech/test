@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Genesis Settings
+Comment=Interfaces, system, appearance and connectivity for Genesis OS
+Exec=genesis-settings
+Icon=genesis-settings
+Terminal=false
+Categories=Settings;System;
+Keywords=settings;preferences;i2c;spi;vnc;ssh;wallpaper;
+StartupNotify=true
