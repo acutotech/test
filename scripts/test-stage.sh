@@ -140,12 +140,15 @@ done
 
 # Image assets must be intact: a text/eol gitattribute once rewrote the CRLF inside
 # the PNG signature. Check the magic bytes of every shipped image.
+check_magic() { # file expected-hex-prefix kind
+	local got; got="$(head -c "$(( ${#2} / 2 ))" "$1" | od -An -tx1 | tr -d ' \n')"
+	if [ "${got}" = "$2" ]; then ok "$3 signature intact: $(basename "$1")"; else fail "corrupt $3 (signature ${got}): ${1#"${REPO_DIR}"/}"; fi
+}
 while IFS= read -r -d '' img; do
-	magic="$(head -c 4 "${img}" | od -An -tx1 | tr -d ' \n')"
 	case "${img##*.}" in
-		png)  [ "$(head -c 8 "${img}" | od -An -tx1 | tr -d ' \n')" = "89504e470d0a1a0a" ] && ok "PNG signature intact: $(basename "${img}")" || fail "corrupt PNG (signature ${magic}...): ${img#"${REPO_DIR}"/}" ;;
-		jpg)  [ "${magic:0:4}" = "ffd8" ] && ok "JPEG signature intact: $(basename "${img}")" || fail "corrupt JPEG (signature ${magic}): ${img#"${REPO_DIR}"/}" ;;
-		webp) [ "${magic}" = "52494646" ] && ok "WebP signature intact: $(basename "${img}")" || fail "corrupt WebP (signature ${magic}): ${img#"${REPO_DIR}"/}" ;;
+		png)  check_magic "${img}" 89504e470d0a1a0a PNG ;;
+		jpg)  check_magic "${img}" ffd8 JPEG ;;
+		webp) check_magic "${img}" 52494646 WebP ;;
 	esac
 done < <(find "${REPO_DIR}/stage-custom" "${REPO_DIR}/branding" -type f \( -name '*.png' -o -name '*.jpg' -o -name '*.webp' \) -print0 | sort -z)
 
