@@ -60,7 +60,10 @@ case "$cmd" in
 		;;
 	notify) call Notify "$(quote "${1:-Genesis}")" "$(quote "${2:-}")" > /dev/null ;;
 	reload) call ReloadTheme > /dev/null ;;
-	state) call GetState | sed -e "s/^('//" -e "s/',)\$//" -e "s/\\\\'/'/g" ;;
+	state)
+		out=$(call GetState) || exit 1
+		printf '%s\n' "$out" | sed -e "s/^('//" -e "s/',)\$//" -e "s/\\\\'/'/g"
+		;;
 	quit) call Quit > /dev/null ;;
 	help | -h | --help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//' ;;
 	*) echo "genesis-shell-ctl: unknown command '$cmd' (try --help)" >&2; exit 64 ;;

@@ -55,9 +55,8 @@
 
   <windowSwitcher show="yes" preview="yes" outlines="yes" allWorkspaces="no">
     <fields>
-      <field content="icon" width="6%" />
-      <field content="desktop_entry_name" width="34%" />
-      <field content="title" width="60%" />
+      <field content="desktop_entry_name" width="35%" />
+      <field content="title" width="65%" />
     </fields>
   </windowSwitcher>
 

@@ -92,6 +92,8 @@ jobs:
 
       - name: Run the desktop headless and take screenshots
         shell: bash
+        env:
+          GENESIS_PREVIEW_PRINT_B64: "1"
         run: /usr/share/genesis-shell/preview.sh "$PWD/preview"
 
       - name: Upload screenshots

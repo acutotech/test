@@ -71,6 +71,39 @@ if command -v lxterminal > /dev/null 2>&1; then
 fi
 ctl state > "$OUT/state-final.json" 2> /dev/null
 cp "${XDG_CACHE_HOME:-$HOME/.cache}/genesis/session.log" "$OUT/session.log" 2> /dev/null || true
+echo "--- session.log (tail) ---"
+tail -n 40 "$OUT/session.log" 2> /dev/null || true
+echo "--- end session.log ---"
+
+# One small picture of all screenshots, also dumped as base64 when asked (CI logs
+# can be read without downloading artifacts).
+python3 - "$OUT" << 'PY'
+import glob, os, sys
+out = sys.argv[1]
+try:
+    from PIL import Image
+except ImportError:
+    sys.exit(0)
+files = sorted(glob.glob(os.path.join(out, "0*.png")))
+if not files:
+    sys.exit(0)
+thumbs = []
+for f in files:
+    try:
+        thumbs.append(Image.open(f).convert("RGB").resize((640, 360)))
+    except Exception:  # noqa: BLE001
+        pass
+cols, rows = 2, (len(thumbs) + 1) // 2
+sheet = Image.new("RGB", (cols * 640 + (cols + 1) * 8, rows * 360 + (rows + 1) * 8), (12, 18, 28))
+for i, t in enumerate(thumbs):
+    sheet.paste(t, (8 + (i % cols) * 648, 8 + (i // cols) * 368))
+sheet.save(os.path.join(out, "contact-sheet.jpg"), quality=80)
+PY
+if [ "${GENESIS_PREVIEW_PRINT_B64:-0}" = 1 ] && [ -f "$OUT/contact-sheet.jpg" ]; then
+	echo "----- BEGIN CONTACT SHEET BASE64 -----"
+	base64 -w 76 "$OUT/contact-sheet.jpg"
+	echo "----- END CONTACT SHEET BASE64 -----"
+fi
 
 python3 - "$OUT" << 'PY'
 import json, os, struct, sys, zlib
