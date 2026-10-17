@@ -7,8 +7,8 @@ import socket
 
 from gi.repository import GLib, Gtk, GtkLayerShell
 
-from .util import add_class, flat_button, icon_button, icon_image, label, spawn, which
-from .widgets import Glass, ListRow, OverlayWindow, SliderRow, Tile, avatar_image, page_header, user_display_name
+from .util import add_class, flat_button, icon_button, icon_image, label, spawn, user_display_name, which
+from .widgets import Glass, ListRow, OverlayWindow, SliderRow, Tile, avatar_image, page_header
 
 log = logging.getLogger("genesis.control")
 
