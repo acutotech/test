@@ -3,7 +3,7 @@
 #
 #   genesis-helper get <item>                 (works unprivileged)
 #   genesis-helper set <item> 0|1             items: i2c spi serial_hw serial_cons onewire ssh vnc camera blanking splash sudo_nopass autologin
-#   genesis-helper session wayfire|labwc      default desktop session for lightdm
+#   genesis-helper session genesis|rpd        default desktop session for lightdm (Genesis, or Raspberry Pi's labwc desktop)
 #   genesis-helper greeter-wallpaper <file>   login screen wallpaper
 #   genesis-helper hostname <name>
 #   genesis-helper timezone <Area/City>
@@ -38,7 +38,7 @@ get_item() {
 		splash) "$RC" nonint get_boot_splash ;;
 		sudo_nopass) "$RC" nonint get_sudo_pass ;;
 		autologin) "$RC" nonint get_autologin ;;
-		session) cat /etc/genesis/session 2> /dev/null || echo labwc ;;
+		session) cat /etc/genesis/session 2> /dev/null || echo rpd ;;
 		*) die "unknown item $1" ;;
 	esac
 }
@@ -77,9 +77,9 @@ set_session() {
 	need_root
 	local name="$1" session
 	case "$name" in
-		wayfire) session=genesis-glass; [ -f /usr/share/wayland-sessions/genesis-glass.desktop ] || die "the Genesis Glass session is not installed" ;;
-		labwc) session=rpd-labwc; [ -f /usr/share/wayland-sessions/rpd-labwc.desktop ] || session=LXDE-pi-labwc ;;
-		*) die "session must be wayfire or labwc" ;;
+		genesis | wayfire) name=genesis; session=genesis; [ -f /usr/share/wayland-sessions/genesis.desktop ] || die "the Genesis session is not installed" ;;
+		rpd | labwc) name=rpd; session=rpd-labwc; [ -f /usr/share/wayland-sessions/rpd-labwc.desktop ] || session=LXDE-pi-labwc ;;
+		*) die "session must be genesis or rpd" ;;
 	esac
 	local conf=/etc/lightdm/lightdm.conf
 	[ -f "$conf" ] || die "$conf not found"

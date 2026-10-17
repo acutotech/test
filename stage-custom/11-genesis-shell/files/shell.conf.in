@@ -1,0 +1,36 @@
+# Genesis Shell defaults for this image (/etc/genesis/shell.conf).
+# Per-user overrides live in ~/.config/genesis/shell.conf (Genesis Settings writes them).
+
+[wallpaper]
+file = /usr/share/genesis/wallpapers/@WALLPAPER@.jpg
+mode = zoom
+
+[panel]
+position = @PANEL_POSITION@
+height = 44
+floating = true
+launchers = @LAUNCHERS@
+clock_format = %a %d %b   %H:%M
+show_seconds = false
+
+[appearance]
+accent = @ACCENT@
+glass_opacity = 0.72
+
+[notifications]
+timeout = 6
+do_not_disturb = false
+
+[launcher]
+columns = 7
+icon_size = 56
+
+[idle]
+blank_timeout = @BLANK_TIMEOUT@
+lock_on_idle = false
+
+[shortcuts]
+terminal = lxterminal
+files = pcmanfm
+settings = genesis-settings
+display_settings = raindrop

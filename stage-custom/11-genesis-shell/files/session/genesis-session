@@ -1,0 +1,43 @@
+#!/bin/sh
+# Genesis OS desktop session: the labwc compositor with the Genesis Shell.
+# Started by lightdm (usr/share/wayland-sessions/genesis.desktop).
+
+if [ -f /usr/bin/setup_env ]; then
+	# Raspberry Pi menu overrides, XDG dirs, Qt/LibreOffice integration
+	# shellcheck disable=SC1091
+	. /usr/bin/setup_env
+fi
+
+export XDG_CURRENT_DESKTOP="Genesis:LXDE-pi"
+export XDG_SESSION_DESKTOP=genesis
+export DESKTOP_SESSION=genesis
+export MOZ_ENABLE_WAYLAND=1
+export QT_QPA_PLATFORM="wayland;xcb"
+export QT_WAYLAND_DISABLE_WINDOWDECORATION=1
+export _JAVA_AWT_WM_NONREPARENTING=1
+
+# Keyboard layout follows the system setting (raspi-config, Genesis Settings).
+if [ -r /etc/default/keyboard ]; then
+	# shellcheck disable=SC1091
+	. /etc/default/keyboard
+	[ -n "${XKBMODEL:-}" ] && export XKB_DEFAULT_MODEL="$XKBMODEL"
+	[ -n "${XKBLAYOUT:-}" ] && export XKB_DEFAULT_LAYOUT="$XKBLAYOUT"
+	[ -n "${XKBVARIANT:-}" ] && export XKB_DEFAULT_VARIANT="$XKBVARIANT"
+	[ -n "${XKBOPTIONS:-}" ] && export XKB_DEFAULT_OPTIONS="$XKBOPTIONS"
+fi
+
+# kanshi (output profiles) refuses to start without a config file
+mkdir -p "$HOME/.config/kanshi"
+[ -f "$HOME/.config/kanshi/config" ] || : > "$HOME/.config/kanshi/config"
+
+# Pis without a GPU MMU (Pi 1, Zero) need the software renderer, as labwc-pi does
+if command -v raspi-config > /dev/null 2>&1 && raspi-config nonint is_pi 2> /dev/null && ! raspi-config nonint gpu_has_mmu 2> /dev/null; then
+	export WLR_RENDERER=pixman
+fi
+
+CONFIG_DIR=/etc/xdg/genesis/labwc
+if [ -f "$HOME/.config/genesis/labwc/rc.xml" ]; then
+	CONFIG_DIR="$HOME/.config/genesis/labwc"
+fi
+
+exec /usr/bin/labwc -C "$CONFIG_DIR" "$@"

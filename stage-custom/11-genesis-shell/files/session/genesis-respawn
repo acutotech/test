@@ -1,0 +1,26 @@
+#!/bin/sh
+# Keep a session component running while this labwc instance lives (like
+# Raspberry Pi's lwrespawn). Exit codes 0 and 2 (clean quit, already running)
+# stop the loop; anything else restarts the program with a growing pause.
+#
+# Usage: genesis-respawn PROGRAM [ARGS...]
+
+if [ $# -eq 0 ]; then
+	echo "usage: genesis-respawn PROGRAM [ARGS...]" >&2
+	exit 64
+fi
+
+COMPOSITOR="${LABWC_PID:-$(pidof labwc 2> /dev/null | cut -d' ' -f1)}"
+pause=1
+while [ -z "$COMPOSITOR" ] || kill -0 "$COMPOSITOR" 2> /dev/null; do
+	"$@"
+	status=$?
+	case "$status" in
+		0 | 2) exit "$status" ;;
+	esac
+	echo "genesis-respawn: $1 exited with status $status, restarting in ${pause}s" >&2
+	sleep "$pause"
+	if [ "$pause" -lt 10 ]; then
+		pause=$((pause * 2))
+	fi
+done

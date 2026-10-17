@@ -1,0 +1,165 @@
+#!/bin/bash
+# Headless smoke test of the Genesis session: starts labwc on a virtual output
+# (no GPU, no display, no seat), waits for Genesis Shell, drives it over D-Bus
+# and saves screenshots plus the shell state. Exit status 0 means the desktop
+# came up and every screenshot shows content.
+#
+#   preview.sh OUTPUT_DIR
+#
+# Runs on a Raspberry Pi over SSH, in the CI container, or inside a chroot of
+# the built image. Needs: labwc, grim, wlr-randr, dbus-run-session, python3.
+set -u
+
+OUT="${1:-$PWD/genesis-preview}"
+mkdir -p "$OUT"
+OUT="$(cd "$OUT" && pwd)"
+
+if [ -z "${GENESIS_PREVIEW_INNER:-}" ]; then
+	export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp/genesis-preview-$(id -u)}"
+	mkdir -p "$XDG_RUNTIME_DIR"
+	chmod 700 "$XDG_RUNTIME_DIR"
+	export WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 WLR_HEADLESS_OUTPUTS=1
+	export XDG_CURRENT_DESKTOP="Genesis:LXDE-pi" XDG_SESSION_TYPE=wayland XDG_SESSION_DESKTOP=genesis
+	export GENESIS_PREVIEW_INNER=1 GENESIS_SHELL_DEBUG=1
+	export HOME="${HOME:-/tmp}"
+	unset WAYLAND_DISPLAY DISPLAY
+	echo "preview: starting labwc headless, output in $OUT"
+	# a private session bus, the compositor, and this script as the session client
+	dbus-run-session -- labwc -C /etc/xdg/genesis/labwc -S "$0 $OUT" > "$OUT/compositor.log" 2>&1
+	status=$?
+	if [ -f "$OUT/result" ]; then
+		status=$(cat "$OUT/result")
+	fi
+	echo "preview: finished with status $status"
+	tail -n 40 "$OUT/compositor.log" || true
+	exit "$status"
+fi
+
+# ---------------------------------------------------------------- inside the compositor
+ctl() { genesis-shell-ctl "$@"; }
+shot() {
+	sleep "${2:-1.2}"
+	if ctl shot "$OUT/$1"; then echo "preview: $1"; else echo "preview: screenshot $1 FAILED"; fi
+}
+
+wlr-randr --output HEADLESS-1 --custom-mode 1920x1080 > /dev/null 2>&1 || true
+
+ready=0
+for _ in $(seq 1 60); do
+	if ctl state > "$OUT/state.json" 2> /dev/null; then ready=1; break; fi
+	sleep 1
+done
+if [ "$ready" != 1 ]; then
+	echo "preview: FAIL genesis-shell did not come up"
+	tail -n 60 "${XDG_CACHE_HOME:-$HOME/.cache}/genesis/session.log" 2> /dev/null
+	echo 1 > "$OUT/result"
+	exit 1
+fi
+sleep 4 # blurred wallpaper and icon caches
+
+shot 01-desktop.png 0.5
+ctl launcher;        shot 02-launcher.png 2;             ctl hide
+ctl control-center;  shot 03-control-center.png 1.5;     ctl hide
+ctl notifications;   shot 04-notification-center.png 1.5; ctl hide
+ctl notify "Genesis OS" "The desktop shell is running headless. Everything in this picture is Genesis Shell."
+shot 05-toast.png 1.5
+ctl power;           shot 06-power.png 1.5;              ctl hide
+ctl osd audio-volume-high-symbolic 0.65 "65%"; shot 07-osd.png 0.5
+if command -v lxterminal > /dev/null 2>&1; then
+	lxterminal > /dev/null 2>&1 &
+	shot 08-window.png 3
+fi
+ctl state > "$OUT/state-final.json" 2> /dev/null
+cp "${XDG_CACHE_HOME:-$HOME/.cache}/genesis/session.log" "$OUT/session.log" 2> /dev/null || true
+
+python3 - "$OUT" << 'PY'
+import json, os, struct, sys, zlib
+
+out = sys.argv[1]
+failures = []
+
+def png_stats(path):
+    """(width, height, distinct-sample-count) without external libraries."""
+    with open(path, "rb") as fh:
+        data = fh.read()
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        return None
+    pos, width, height, idat = 8, 0, 0, b""
+    while pos < len(data):
+        length, kind = struct.unpack(">I4s", data[pos:pos + 8])
+        body = data[pos + 8:pos + 8 + length]
+        if kind == b"IHDR":
+            width, height, depth, ctype = struct.unpack(">IIBB", body[:10])
+            if depth != 8 or ctype not in (2, 6):
+                return (width, height, -1)
+            channels = 3 if ctype == 2 else 4
+        elif kind == b"IDAT":
+            idat += body
+        pos += 12 + length
+    raw = zlib.decompress(idat)
+    stride = width * channels + 1
+    samples = set()
+    prev = bytearray(width * channels)
+    for y in range(height):
+        ftype = raw[y * stride]
+        line = bytearray(raw[y * stride + 1:(y + 1) * stride])
+        bpp = channels
+        for i in range(len(line)):
+            a = line[i - bpp] if i >= bpp else 0
+            b = prev[i]
+            c = prev[i - bpp] if i >= bpp else 0
+            if ftype == 1: line[i] = (line[i] + a) & 255
+            elif ftype == 2: line[i] = (line[i] + b) & 255
+            elif ftype == 3: line[i] = (line[i] + ((a + b) >> 1)) & 255
+            elif ftype == 4:
+                p = a + b - c; pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+                line[i] = (line[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+        prev = line
+        if y % 12 == 0:
+            for x in range(0, width * channels, channels * 16):
+                samples.add(bytes(line[x:x + 3]))
+    return (width, height, len(samples))
+
+for name in sorted(os.listdir(out)):
+    if not name.endswith(".png"):
+        continue
+    path = os.path.join(out, name)
+    stats = png_stats(path)
+    if stats is None:
+        failures.append(f"{name}: not a PNG"); continue
+    w, h, distinct = stats
+    verdict = "ok" if distinct >= 24 else "BLANK"
+    print(f"{name}: {w}x{h}, {distinct} distinct colours sampled -> {verdict}")
+    if distinct < 24:
+        failures.append(f"{name}: looks blank ({distinct} colours)")
+    if w < 1280:
+        failures.append(f"{name}: unexpected size {w}x{h}")
+
+for required in ("01-desktop.png", "02-launcher.png", "03-control-center.png", "04-notification-center.png", "05-toast.png", "06-power.png"):
+    if not os.path.exists(os.path.join(out, required)):
+        failures.append(f"missing {required}")
+
+try:
+    with open(os.path.join(out, "state-final.json"), encoding="utf-8") as fh:
+        state = json.load(fh)
+    print("shell state:", json.dumps(state["services"]), "monitors:", state["monitors"], "apps:", state["apps"])
+    if state["monitors"] < 1:
+        failures.append("no panel created")
+    if not state["services"]["notifications"]:
+        failures.append("notification server not owned")
+    if state["apps"] < 1:
+        failures.append("application index empty")
+except Exception as exc:  # noqa: BLE001
+    failures.append(f"state unreadable: {exc}")
+
+if failures:
+    print("preview: FAIL")
+    for f in failures:
+        print("  -", f)
+    sys.exit(1)
+print("preview: PASS")
+PY
+status=$?
+echo "$status" > "$OUT/result"
+ctl quit > /dev/null 2>&1 || true
+exit "$status"

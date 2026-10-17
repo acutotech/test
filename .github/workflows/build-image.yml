@@ -50,9 +50,62 @@ jobs:
       - name: Dry-run the custom stage
         run: make test
 
+  shell-preview:
+    name: Genesis Shell headless preview
+    needs: lint
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    container:
+      image: debian:trixie
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install the desktop stack (Raspberry Pi labwc when reachable)
+        shell: bash
+        run: |
+          set -euo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends ca-certificates curl gnupg
+          key=/usr/share/keyrings/raspberrypi-archive.gpg
+          if curl -fsSL --retry 3 https://archive.raspberrypi.com/debian/raspberrypi.gpg.key | gpg --dearmor -o "$key"; then
+            echo "deb [signed-by=$key] https://archive.raspberrypi.com/debian/ trixie main" \
+              > /etc/apt/sources.list.d/raspi.list
+            apt-get update -qq || rm -f /etc/apt/sources.list.d/raspi.list
+          fi
+          sed -e 's/#.*//' stage-custom/11-genesis-shell/00-packages \
+            | xargs apt-get install -y -qq --no-install-recommends
+          apt-get install -y -qq --no-install-recommends dbus dbus-bin dbus-daemon lxterminal \
+            fonts-inter fonts-jetbrains-mono fonts-dejavu-core gtk-update-icon-cache \
+            desktop-file-utils shared-mime-info at-spi2-core librsvg2-common xwayland
+          labwc --version
+          python3 -c 'import gi; gi.require_version("GtkLayerShell", "0.1"); from gi.repository import GtkLayerShell' \
+            && echo "gtk-layer-shell ok"
+
+      - name: Install Genesis Shell the way the image build does
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage-custom/11-genesis-shell/files/install.sh --root / --branding stage-custom/10-branding/files
+          /usr/share/genesis-shell/install.sh --postinstall
+          ls /usr/lib/genesis-shell/genesis_shell/protocols
+
+      - name: Run the desktop headless and take screenshots
+        shell: bash
+        run: /usr/share/genesis-shell/preview.sh "$PWD/preview"
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: genesis-shell-preview
+          path: preview/
+          if-no-files-found: warn
+          retention-days: 14
+
   build:
     name: Build image
-    needs: lint
+    needs: [lint, shell-preview]
     # Full builds take a long time: only main, release tags and manual runs.
     if: >-
       github.event_name == 'workflow_dispatch'
@@ -223,6 +276,30 @@ jobs:
             cat SHA256SUMS
             echo '```'
           } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Smoke-test the desktop inside the image
+        id: smoke
+        env:
+          IMAGE_PATH: ${{ steps.build.outputs.image-path }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo --preserve-env=IMAGE_PATH scripts/image-smoke.sh "${IMAGE_PATH}" image-smoke
+          {
+            echo "### Desktop smoke test"
+            echo
+            echo "Result: \`$(cat image-smoke/result 2>/dev/null || echo unknown)\`"
+            echo "(0 = the Genesis session came up headless and every screenshot has content)"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload smoke-test screenshots
+        if: always() && steps.build.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: genesis-image-smoke
+          path: image-smoke/
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload image
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
