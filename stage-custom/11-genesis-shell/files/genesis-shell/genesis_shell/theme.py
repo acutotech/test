@@ -29,11 +29,12 @@ class Theme:
     def colours(self) -> dict[str, str]:
         accent = self.config.get("appearance", "accent") or "#4f8cff"
         r, g, b = parse_hex(accent)
+        accent = "#%02x%02x%02x" % (int(r * 255), int(g * 255), int(b * 255))  # normalised, always valid CSS
         opacity = max(0.3, min(0.98, self.config.getfloat("appearance", "glass_opacity")))
+        # every value here must be a valid GTK CSS colour: one bad @define-color discards the whole stylesheet
         return {
             "accent": accent,
             "accent_hover": lighten(accent, 0.18),
-            "accent_rgb": f"{int(r * 255)}, {int(g * 255)}, {int(b * 255)}",
             "glass": f"rgba(14, 21, 32, {opacity:.2f})",
             "glass_strong": f"rgba(12, 19, 29, {min(0.98, opacity + 0.16):.2f})",
             "glass_light": "rgba(255, 255, 255, 0.07)",

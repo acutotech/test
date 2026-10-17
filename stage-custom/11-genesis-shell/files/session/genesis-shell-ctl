@@ -61,8 +61,21 @@ case "$cmd" in
 	notify) call Notify "$(quote "${1:-Genesis}")" "$(quote "${2:-}")" > /dev/null ;;
 	reload) call ReloadTheme > /dev/null ;;
 	state)
-		out=$(call GetState) || exit 1
-		printf '%s\n' "$out" | sed -e "s/^('//" -e "s/',)\$//" -e "s/\\\\'/'/g"
+		# JSON may contain quotes that gdbus would re-escape; read the string with GIO instead
+		python3 - << 'PYEOF'
+import sys
+import gi
+gi.require_version("Gio", "2.0")
+from gi.repository import Gio, GLib
+try:
+    bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+    result = bus.call_sync("org.genesis.Shell", "/org/genesis/Shell", "org.genesis.Shell", "GetState",
+                           None, GLib.VariantType("(s)"), Gio.DBusCallFlags.NONE, 5000, None)
+except GLib.Error as exc:
+    print(f"genesis-shell-ctl: {exc.message}", file=sys.stderr)
+    sys.exit(1)
+print(result.unpack()[0])
+PYEOF
 		;;
 	quit) call Quit > /dev/null ;;
 	help | -h | --help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//' ;;

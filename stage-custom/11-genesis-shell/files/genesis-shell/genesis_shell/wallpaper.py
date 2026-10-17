@@ -176,14 +176,14 @@ class WallpaperManager:
             if mode == "stretch":
                 out = src.scale_simple(width, height, GdkPixbuf.InterpType.BILINEAR)
             elif mode == "center":
-                out = self._blank(width, height)
+                out = self._blank(width, height, src.get_has_alpha())
                 w, h = min(sw, width), min(sh, height)
                 src.copy_area((sw - w) // 2, (sh - h) // 2, w, h, out, (width - w) // 2, (height - h) // 2)
             elif mode == "fit":
                 scale = min(width / sw, height / sh)
                 w, h = max(1, int(sw * scale)), max(1, int(sh * scale))
                 scaled = src.scale_simple(w, h, GdkPixbuf.InterpType.BILINEAR)
-                out = self._blank(width, height)
+                out = self._blank(width, height, scaled.get_has_alpha())
                 scaled.copy_area(0, 0, w, h, out, (width - w) // 2, (height - h) // 2)
             else:  # zoom / cover
                 scale = max(width / sw, height / sh)
@@ -197,8 +197,8 @@ class WallpaperManager:
         return out
 
     @staticmethod
-    def _blank(width: int, height: int) -> GdkPixbuf.Pixbuf:
-        pix = GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB, False, 8, width, height)
+    def _blank(width: int, height: int, has_alpha: bool = False) -> GdkPixbuf.Pixbuf:
+        pix = GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB, bool(has_alpha), 8, width, height)
         pix.fill(0x0B1420FF)
         return pix
 

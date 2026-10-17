@@ -21,7 +21,7 @@ import genesis_shell  # noqa: E402
 failures = 0
 names = ["genesis_shell"]
 for info in pkgutil.walk_packages(genesis_shell.__path__, "genesis_shell."):
-    if ".protocols" in info.name:
+    if ".protocols" in info.name or info.name.endswith("__main__"):
         continue
     names.append(info.name)
 for name in names:

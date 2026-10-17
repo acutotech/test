@@ -21,8 +21,9 @@ class BluetoothService(Service):
         self.devices: list[dict] = []
         self._manager = None
         try:
+            # (bus_type, flags, name, object_path, get_proxy_type_func, get_proxy_type_user_data, cancellable)
             self._manager = Gio.DBusObjectManagerClient.new_for_bus_sync(
-                Gio.BusType.SYSTEM, Gio.DBusObjectManagerClientFlags.NONE, "org.bluez", "/", None, None, None, None
+                Gio.BusType.SYSTEM, Gio.DBusObjectManagerClientFlags.NONE, "org.bluez", "/", None, None, None
             )
         except GLib.Error as exc:
             log.info("BlueZ unavailable: %s", exc)

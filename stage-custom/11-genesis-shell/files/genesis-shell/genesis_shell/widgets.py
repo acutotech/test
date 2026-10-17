@@ -37,10 +37,21 @@ class Glass(Gtk.Box):
             return False
         alloc = self.get_allocation()
         ox, oy = self._origin()
+        # position within the toplevel (allocation is relative to the parent GdkWindow,
+        # which differs from the toplevel inside Gtk.Overlay)
+        wx, wy = alloc.x, alloc.y
+        toplevel = self.get_toplevel()
+        if toplevel is not None and toplevel is not self:
+            res = self.translate_coordinates(toplevel, 0, 0)
+            if isinstance(res, tuple):
+                if len(res) == 3 and res[0]:
+                    wx, wy = res[1], res[2]
+                elif len(res) == 2:
+                    wx, wy = res
         cr.save()
         rounded_rect(cr, 0, 0, alloc.width, alloc.height, self.radius)
         cr.clip()
-        cr.set_source_surface(surface, -(ox + alloc.x), -(oy + alloc.y))
+        cr.set_source_surface(surface, -(ox + wx), -(oy + wy))
         cr.paint()
         cr.restore()
         return False  # let CSS background (the tint) and children draw on top

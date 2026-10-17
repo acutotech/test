@@ -392,7 +392,8 @@ class NotificationList(Gtk.Box):
         header.pack_start(label("Notifications", css=("title",), xalign=0), True, True, 0)
         self.dnd_switch = Gtk.Switch()
         self.dnd_switch.set_tooltip_text("Do Not Disturb")
-        self.dnd_switch.connect("state-set", lambda _s, state: (shell.notifications.set_dnd(state), False)[1])
+        self._syncing = False
+        self.dnd_switch.connect("state-set", self._on_dnd_switch)
         header.pack_end(self.dnd_switch, False, False, 0)
         header.pack_end(icon_image("notifications-disabled-symbolic", 14), False, False, 0)
         self.pack_start(header, False, False, 0)
@@ -410,9 +411,19 @@ class NotificationList(Gtk.Box):
         shell.notifications.connect(self.refresh)
         self.refresh()
 
+    def _on_dnd_switch(self, _switch, state) -> bool:
+        if not self._syncing and bool(state) != self.shell.notifications.dnd:
+            self.shell.notifications.set_dnd(bool(state))
+        return False
+
     def refresh(self) -> None:
         svc = self.shell.notifications
-        self.dnd_switch.set_state(svc.dnd)
+        self._syncing = True
+        try:
+            self.dnd_switch.set_state(svc.dnd)
+            self.dnd_switch.set_active(svc.dnd)
+        finally:
+            self._syncing = False
         for child in self.rows.get_children():
             self.rows.remove(child)
         if not svc.items:

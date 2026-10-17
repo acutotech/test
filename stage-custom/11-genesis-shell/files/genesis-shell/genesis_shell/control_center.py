@@ -87,7 +87,6 @@ class ControlCenter(OverlayWindow):
         page.pack_start(self.sink_button, False, False, 0)
 
         self.brightness = SliderRow("display-brightness-symbolic", None, s.brightness.set_level)
-        self.brightness.set_no_show_all(True)
         page.pack_start(self.brightness, False, False, 0)
 
         grid = Gtk.Grid()
@@ -114,7 +113,7 @@ class ControlCenter(OverlayWindow):
     def _build_wifi(self) -> Gtk.Widget:
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.wifi_switch = Gtk.Switch()
-        self.wifi_switch.connect("state-set", lambda _s, state: (self.shell.network.set_wifi_enabled(state), False)[1])
+        self.wifi_switch.connect("state-set", self._on_wifi_switch)
         page.pack_start(page_header("Wi-Fi", lambda: self._show_page("main"), self.wifi_switch), False, False, 0)
         self.wifi_list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         scrolled = Gtk.ScrolledWindow()
@@ -136,7 +135,7 @@ class ControlCenter(OverlayWindow):
     def _build_bluetooth(self) -> Gtk.Widget:
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.bt_switch = Gtk.Switch()
-        self.bt_switch.connect("state-set", lambda _s, state: (self.shell.bluetooth.set_powered(state), False)[1])
+        self.bt_switch.connect("state-set", self._on_bt_switch)
         page.pack_start(page_header("Bluetooth", lambda: self._show_page("main"), self.bt_switch), False, False, 0)
         self.bt_list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         scrolled = Gtk.ScrolledWindow()
@@ -182,6 +181,25 @@ class ControlCenter(OverlayWindow):
         self.refresh()
 
     # -- actions --------------------------------------------------------------------
+    def _sync_switch(self, switch: Gtk.Switch, state: bool) -> None:
+        """Reflect service state without triggering the state-set handler."""
+        self._syncing = True
+        try:
+            switch.set_state(bool(state))
+            switch.set_active(bool(state))
+        finally:
+            self._syncing = False
+
+    def _on_wifi_switch(self, _switch, state) -> bool:
+        if not getattr(self, "_syncing", False):
+            self.shell.network.set_wifi_enabled(bool(state))
+        return False
+
+    def _on_bt_switch(self, _switch, state) -> bool:
+        if not getattr(self, "_syncing", False):
+            self.shell.bluetooth.set_powered(bool(state))
+        return False
+
     def _toggle_wifi(self) -> None:
         self.shell.network.set_wifi_enabled(not self.shell.network.wifi_enabled)
 
@@ -246,7 +264,7 @@ class ControlCenter(OverlayWindow):
 
     def _fill_wifi(self) -> None:
         net = self.shell.network
-        self.wifi_switch.set_state(net.wifi_enabled)
+        self._sync_switch(self.wifi_switch, net.wifi_enabled)
         self._clear(self.wifi_list)
         self._password_row = None
         if not net.wifi_enabled:
@@ -315,7 +333,7 @@ class ControlCenter(OverlayWindow):
 
     def _fill_bluetooth(self) -> None:
         bt = self.shell.bluetooth
-        self.bt_switch.set_state(bt.powered)
+        self._sync_switch(self.bt_switch, bt.powered)
         self._clear(self.bt_list)
         if not bt.powered:
             self.bt_list.pack_start(label("Bluetooth is off", css=("empty-state",)), False, False, 0)

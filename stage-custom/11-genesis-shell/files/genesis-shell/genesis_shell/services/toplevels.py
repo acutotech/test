@@ -58,6 +58,7 @@ class ToplevelService(Service):
             self._display = Display()
             self._display.connect()
             registry = self._display.get_registry()
+            self._registry = registry  # keep the proxy alive: its dispatcher delivers later globals
             registry.dispatcher["global"] = self._on_global
             registry.dispatcher["global_remove"] = lambda *_a: None
             self._display.roundtrip()
