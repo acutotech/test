@@ -102,11 +102,14 @@ class Shell:
         for panel in self.panels.values():
             panel.destroy()
         self.panels = {}
-        for mon in monitors():
+        mons = monitors()
+        if not mons:
+            log.warning("no monitors known to GTK yet; panels will be created on monitor-added")
+        for mon in mons:
             try:
                 self.panels[mon] = Panel(self, mon)
             except Exception:  # noqa: BLE001
-                log.exception("cannot create panel")
+                log.exception("cannot create panel on %s", mon.get_model() if hasattr(mon, "get_model") else mon)
         self._update_status()
 
     def panel_position(self) -> str:

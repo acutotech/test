@@ -31,7 +31,12 @@ if [ -z "${GENESIS_PREVIEW_INNER:-}" ]; then
 		status=$(cat "$OUT/result")
 	fi
 	echo "preview: finished with status $status"
-	tail -n 40 "$OUT/compositor.log" || true
+	echo "===== compositor.log (labwc + session client, without the picture) ====="
+	sed -e '/BEGIN CONTACT SHEET BASE64/,/END CONTACT SHEET BASE64/d' "$OUT/compositor.log" || true
+	echo "===== shell session.log ====="
+	tail -n 120 "$OUT/session.log" 2> /dev/null || echo "(no session.log)"
+	echo "===== contact sheet ====="
+	sed -n '/BEGIN CONTACT SHEET BASE64/,/END CONTACT SHEET BASE64/p' "$OUT/compositor.log" || true
 	exit "$status"
 fi
 
