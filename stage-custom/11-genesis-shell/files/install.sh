@@ -19,6 +19,7 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT=""
+ROOT_SET=0
 SKEL=""
 USER_HOME=""
 WALLPAPER="genesis-horizon"
@@ -33,7 +34,7 @@ usage() { sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; }
 
 while [ $# -gt 0 ]; do
 	case "$1" in
-		--root) ROOT="${2%/}"; shift 2 ;;
+		--root) ROOT="${2%/}"; ROOT_SET=1; shift 2 ;;  # "/" becomes "" so "$ROOT/usr" is "/usr"
 		--skel) SKEL="$2"; shift 2 ;;
 		--user-home) USER_HOME="$2"; shift 2 ;;
 		--wallpaper) WALLPAPER="$2"; shift 2 ;;
@@ -93,8 +94,8 @@ if [ "$MODE" = "postinstall" ]; then
 	exit 0
 fi
 
-[ -n "$ROOT" ] || { echo "install.sh: --root is required" >&2; exit 64; }
-[ -d "$ROOT" ] || { echo "install.sh: $ROOT is not a directory" >&2; exit 66; }
+[ "$ROOT_SET" = 1 ] || { echo "install.sh: --root is required" >&2; exit 64; }
+[ -d "${ROOT:-/}" ] || { echo "install.sh: ${ROOT} is not a directory" >&2; exit 66; }
 
 inst() { # mode source destination-in-root
 	install -D -m "$1" "$2" "$ROOT$3"
